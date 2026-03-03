@@ -74,7 +74,7 @@ class GeminiAgent:
         """
         # gemini-1.5-flash: 빠르고 무료 할당량이 넉넉한 모델
         model = self._genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-2.5-flash",
             system_instruction=SYSTEM_PROMPT,  # 시스템 프롬프트로 역할 부여
         )
         # 대화 히스토리를 기억하는 채팅 세션 시작

@@ -8,6 +8,9 @@
   <!-- TradingView 차트 라이브러리 (CDN — 설치 불필요) -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
+  <!-- Chart.js — KPI 차트 시각화용 (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
@@ -15,13 +18,13 @@
   <!-- ── 헤더 ──────────────────────────────────────────────────── -->
   <header class="header">
     <div class="header-left">
-      <!-- 사이드바 접기/펼치기 버튼 -->
+      <!-- 사이드바 접기/펼치기 버튼 (Tab A에서만 의미 있음) -->
       <button id="sidebar-toggle" class="btn-icon" title="종목 패널 열기/닫기">☰</button>
       <span class="logo">Markov Trade</span>
     </div>
 
     <div class="header-center">
-      <!-- 직접 종목 코드 입력 (사이드바 외에도 검색 가능) -->
+      <!-- 직접 종목 코드 입력 -->
       <input id="ticker-input" type="text" placeholder="종목 코드 직접 입력 (예: BTC-USD)" />
 
       <select id="period-select">
@@ -47,97 +50,314 @@
     </div>
   </header>
 
-  <!-- ── 메인: 사이드바 + 차트 + 채팅 ────────────────────────── -->
-  <main class="main-grid" id="main-grid">
+  <!-- ── 탭 네비게이션 ────────────────────────────────────────── -->
+  <!-- Tab A: 차트/신호 화면, Tab B: 일지/분석 화면 전환 -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="signal">Signal / Chart</button>
+    <button class="tab-btn" data-tab="journal">Journal / Analytics</button>
+  </nav>
 
-    <!-- 왼쪽: 종목 선택 사이드바 -->
-    <aside class="market-sidebar" id="market-sidebar">
-      <div class="sidebar-inner">
-        <!-- JavaScript가 여기에 종목 트리를 렌더링 -->
-        <div id="market-tree"></div>
+  <!-- ══════════════════════════════════════════════════════════════
+       Tab A — Signal / Chart (기존 차트+채팅 화면)
+       ══════════════════════════════════════════════════════════════ -->
+  <div id="tab-signal" class="tab-content active">
+
+    <!-- 메인: 사이드바 + 차트 + 채팅 -->
+    <main class="main-grid" id="main-grid">
+
+      <!-- 왼쪽: 종목 선택 사이드바 -->
+      <aside class="market-sidebar" id="market-sidebar">
+        <div class="sidebar-inner">
+          <!-- JavaScript가 여기에 종목 트리를 렌더링 -->
+          <div id="market-tree"></div>
+        </div>
+      </aside>
+
+      <!-- 가운데: 캔들 차트 -->
+      <section class="chart-section">
+
+        <!-- 볼린저밴드 파라미터 + 롱/숏 버튼 바 -->
+        <div class="bb-control-bar">
+          <!-- 볼린저밴드 기간 설정 (기본: 20봉) -->
+          <label class="bb-param-label">
+            BB 기간
+            <input id="bb-period" type="number" value="20" min="5" max="200" class="bb-param-input" />
+          </label>
+          <!-- 표준편차 배수 설정 (기본: 2.0) -->
+          <label class="bb-param-label">
+            표준편차 배수
+            <input id="bb-std" type="number" value="2.0" min="0.5" max="4.0" step="0.1" class="bb-param-input" />
+          </label>
+          <!-- 롱/숏 신호 버튼 -->
+          <button id="signal-long-btn" class="btn-signal btn-long">롱 (Long)</button>
+          <button id="signal-short-btn" class="btn-signal btn-short">숏 (Short)</button>
+          <!-- 차트 라인 초기화 버튼 -->
+          <button id="signal-clear-btn" class="btn-ghost" style="margin-left:auto;">라인 초기화</button>
+        </div>
+
+        <div id="chart-container"></div>
+
+        <!-- 차트 하단 가격 정보 바 -->
+        <div id="price-info" class="price-info-bar">
+          <span id="info-ticker" class="muted">—</span>
+          <span id="info-open">시가 —</span>
+          <span id="info-high" class="green">고가 —</span>
+          <span id="info-low" class="red">저가 —</span>
+          <span id="info-close">현재가 —</span>
+        </div>
+      </section>
+
+      <!-- 오른쪽: AI 채팅 -->
+      <section class="chat-section">
+        <div class="chat-header">
+          <span>AI 분석</span>
+          <button id="reset-btn" class="btn-ghost">초기화</button>
+        </div>
+
+        <!-- 모델 선택 토글 — Claude 또는 Gemini 선택 -->
+        <div class="model-toggle-bar">
+          <button class="model-btn" id="btn-claude" data-model="claude">
+            <span class="model-dot claude-dot"></span>Claude
+          </button>
+          <button class="model-btn active" id="btn-gemini" data-model="gemini">
+            <span class="model-dot gemini-dot"></span>Gemini
+          </button>
+        </div>
+
+        <div id="chat-messages" class="chat-messages"></div>
+        <div class="chat-input-row">
+          <input id="chat-input" type="text" placeholder="분석 요청..." />
+          <button id="send-btn" class="btn-primary">전송</button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Tab A 하단: 3-TF 비교 패널 (볼린저밴드 신호 후 표시) -->
+    <section class="tf-panel-section" id="tf-panel-section" style="display:none;">
+      <div class="tf-panel-header">
+        <span class="tf-panel-title">3 타임프레임 비교 분석</span>
+        <!-- Journal 프리필 버튼 — 신호 데이터를 일지 초안으로 저장 -->
+        <button id="prefill-journal-btn" class="btn-primary" style="font-size:12px; padding:5px 14px;">
+          일지 초안 저장 (Journal 프리필)
+        </button>
+        <button id="tf-panel-close-btn" class="btn-ghost">닫기</button>
       </div>
-    </aside>
 
-    <!-- 가운데: 캔들 차트 -->
-    <section class="chart-section">
-      <div id="chart-container"></div>
-      <!-- 차트 하단 가격 정보 바 -->
-      <div id="price-info" class="price-info-bar">
-        <span id="info-ticker" class="muted">—</span>
-        <span id="info-open">시가 —</span>
-        <span id="info-high" class="green">고가 —</span>
-        <span id="info-low" class="red">저가 —</span>
-        <span id="info-close">현재가 —</span>
+      <!-- 3개 타임프레임 카드 나란히 배치 -->
+      <div class="tf-cards" id="tf-cards">
+        <!-- JavaScript가 여기에 3개 TF 카드를 렌더링 -->
       </div>
     </section>
 
-    <!-- 오른쪽: AI 채팅 -->
-    <section class="chat-section">
-      <div class="chat-header">
-        <span>🤖 AI 분석</span>
-        <button id="reset-btn" class="btn-ghost">초기화</button>
+    <!-- Tab A 하단: 간단 통계바 (기존 유지) -->
+    <section class="journal-section">
+      <div class="stats-bar">
+        <div class="stat-card">
+          <span class="stat-label">총 매매</span>
+          <span id="stat-total" class="stat-value">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">승</span>
+          <span id="stat-win" class="stat-value green">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">패</span>
+          <span id="stat-loss" class="stat-value red">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">승률</span>
+          <span id="stat-winrate" class="stat-value">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">진행 중</span>
+          <span id="stat-open" class="stat-value yellow">0</span>
+        </div>
       </div>
 
-      <!-- 모델 선택 토글 — Claude 또는 Gemini 선택 -->
-      <div class="model-toggle-bar">
-        <button class="model-btn" id="btn-claude" data-model="claude">
-          <span class="model-dot claude-dot"></span>Claude
-        </button>
-        <button class="model-btn active" id="btn-gemini" data-model="gemini">
-          <span class="model-dot gemini-dot"></span>Gemini
-        </button>
-      </div>
-
-      <div id="chat-messages" class="chat-messages"></div>
-      <div class="chat-input-row">
-        <input id="chat-input" type="text" placeholder="분석 요청..." />
-        <button id="send-btn" class="btn-primary">전송</button>
+      <!-- 간단 저널 테이블 (기존 유지) -->
+      <div class="journal-table-wrap">
+        <table class="journal-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>시간</th><th>종목</th><th>방향</th>
+              <th>진입가</th><th>손절가</th><th>TP1</th><th>레버리지</th>
+              <th>결과</th><th>손익</th><th>메모</th><th>삭제</th>
+            </tr>
+          </thead>
+          <tbody id="journal-tbody"></tbody>
+        </table>
+        <p id="journal-empty" class="empty-msg">기록된 매매가 없습니다.</p>
       </div>
     </section>
 
-  </main>
+  </div><!-- /tab-signal -->
 
-  <!-- ── 하단: 매매 일지 ───────────────────────────────────────── -->
-  <section class="journal-section">
 
-    <div class="stats-bar">
-      <div class="stat-card">
-        <span class="stat-label">총 매매</span>
-        <span id="stat-total" class="stat-value">0</span>
+  <!-- ══════════════════════════════════════════════════════════════
+       Tab B — Journal / Analytics (일지 + 성과 분석 화면)
+       ══════════════════════════════════════════════════════════════ -->
+  <div id="tab-journal" class="tab-content">
+
+    <!-- 1. KPI 카드 8개 — 핵심 성과 지표 한눈에 보기 -->
+    <div class="kpi-section">
+      <div class="kpi-card">
+        <div class="kpi-label">총 손익</div>
+        <div class="kpi-value" id="kpi-total-pnl">—</div>
       </div>
-      <div class="stat-card">
-        <span class="stat-label">승</span>
-        <span id="stat-win" class="stat-value green">0</span>
+      <div class="kpi-card">
+        <div class="kpi-label">승률</div>
+        <div class="kpi-value" id="kpi-winrate">—</div>
       </div>
-      <div class="stat-card">
-        <span class="stat-label">패</span>
-        <span id="stat-loss" class="stat-value red">0</span>
+      <div class="kpi-card">
+        <div class="kpi-label">평균 R-multiple</div>
+        <div class="kpi-value" id="kpi-avg-r">—</div>
       </div>
-      <div class="stat-card">
-        <span class="stat-label">승률</span>
-        <span id="stat-winrate" class="stat-value">—</span>
+      <div class="kpi-card">
+        <div class="kpi-label">Profit Factor</div>
+        <div class="kpi-value" id="kpi-profit-factor">—</div>
       </div>
-      <div class="stat-card">
-        <span class="stat-label">진행 중</span>
-        <span id="stat-open" class="stat-value yellow">0</span>
+      <div class="kpi-card">
+        <div class="kpi-label">Expectancy (R)</div>
+        <div class="kpi-value" id="kpi-expectancy">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Max Drawdown</div>
+        <div class="kpi-value" id="kpi-max-dd">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">평균 R:R</div>
+        <div class="kpi-value" id="kpi-avg-rr">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">최대 연속손실</div>
+        <div class="kpi-value" id="kpi-max-streak">—</div>
       </div>
     </div>
 
-    <div class="journal-table-wrap">
-      <table class="journal-table">
-        <thead>
-          <tr>
-            <th>ID</th><th>시간</th><th>종목</th><th>방향</th>
-            <th>진입가</th><th>손절가</th><th>TP1</th><th>레버리지</th>
-            <th>결과</th><th>손익</th><th>메모</th><th>삭제</th>
-          </tr>
-        </thead>
-        <tbody id="journal-tbody"></tbody>
-      </table>
-      <p id="journal-empty" class="empty-msg">기록된 매매가 없습니다.</p>
+    <!-- 2. 차트 시각화 3개 (Equity Curve / 일별손익 / R-multiple 히스토그램) -->
+    <div class="analytics-charts">
+      <!-- 누적 Equity Curve — 자산이 어떻게 쌓였는지 추이 -->
+      <div class="analytics-chart-box">
+        <div class="analytics-chart-title">누적 Equity Curve</div>
+        <canvas id="equity-curve-chart"></canvas>
+      </div>
+      <!-- 일별 손익 막대 차트 -->
+      <div class="analytics-chart-box">
+        <div class="analytics-chart-title">일별 손익</div>
+        <canvas id="daily-pnl-chart"></canvas>
+      </div>
+      <!-- R-multiple 분포 히스토그램 -->
+      <div class="analytics-chart-box">
+        <div class="analytics-chart-title">R-multiple 분포</div>
+        <canvas id="r-multiple-chart"></canvas>
+      </div>
     </div>
 
-  </section>
+    <!-- 3. 저널 데이터 테이블 (확장 컬럼 버전) -->
+    <div class="journal-advanced">
+      <!-- 필터 + 버튼 툴바 -->
+      <div class="journal-toolbar">
+        <input id="journal-filter-ticker" type="text" placeholder="종목 필터 (예: MGC)" class="journal-filter-input" />
+        <select id="journal-filter-result" class="journal-filter-select">
+          <option value="all">전체 결과</option>
+          <option value="win">승 (win)</option>
+          <option value="loss">패 (loss)</option>
+          <option value="breakeven">본전 (breakeven)</option>
+          <option value="open">진행 중 (open)</option>
+        </select>
+        <button id="journal-export-csv" class="btn-ghost">CSV 내보내기</button>
+        <button id="journal-add-btn" class="btn-primary">+ 새 매매 추가</button>
+      </div>
+
+      <!-- 확장 저널 테이블 -->
+      <div class="journal-table-v2-wrap">
+        <table class="journal-table-v2">
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>종목</th>
+              <th>방향</th>
+              <th>진입가</th>
+              <th>SL</th>
+              <th>TP1</th>
+              <th>레버리지</th>
+              <th>계약수</th>
+              <th>결과</th>
+              <th>손익($)</th>
+              <th>손익률(%)</th>
+              <th>R-multiple</th>
+              <th>수수료($)</th>
+              <th>메모</th>
+              <th>삭제</th>
+            </tr>
+          </thead>
+          <tbody id="journal-v2-tbody"></tbody>
+        </table>
+        <p id="journal-v2-empty" class="empty-msg">기록된 매매가 없습니다.</p>
+      </div>
+    </div>
+
+    <!-- 4. 전략 수정 가이드 패널 -->
+    <div class="strategy-guide-section">
+      <div class="strategy-guide-header">
+        <span class="strategy-guide-title">전략 수정 가이드 자동 생성</span>
+        <button id="generate-guide-btn" class="btn-primary" style="font-size:12px; padding:5px 14px;">분석 생성</button>
+      </div>
+      <!-- 분석 결과가 여기에 표시됨 -->
+      <div id="strategy-guide-output" class="strategy-guide-output">
+        <p class="empty-msg">분석 생성 버튼을 클릭하면 저널 데이터를 분석해 전략 개선 가이드를 제공합니다.</p>
+      </div>
+    </div>
+
+    <!-- 5. 새 매매 추가 모달 (기본 숨김 — 버튼 클릭시 표시) -->
+    <div id="add-trade-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-box">
+        <div class="modal-header">
+          <span>새 매매 기록 추가</span>
+          <button class="btn-ghost" id="modal-close-btn">닫기</button>
+        </div>
+        <div class="modal-body">
+          <!-- 폼 입력 필드들 -->
+          <div class="form-grid">
+            <label>종목<input id="form-ticker" type="text" placeholder="BTC-USD" /></label>
+            <label>방향
+              <select id="form-direction">
+                <option value="롱">롱</option>
+                <option value="숏">숏</option>
+              </select>
+            </label>
+            <label>진입가<input id="form-entry" type="number" step="any" placeholder="0.00" /></label>
+            <label>손절가(SL)<input id="form-sl" type="number" step="any" placeholder="0.00" /></label>
+            <label>TP1<input id="form-tp1" type="number" step="any" placeholder="0.00" /></label>
+            <label>레버리지<input id="form-leverage" type="number" value="1" min="1" /></label>
+            <label>계약수<input id="form-contracts" type="number" value="1" min="1" /></label>
+            <label>결과
+              <select id="form-result">
+                <option value="open">진행 중</option>
+                <option value="win">승 (win)</option>
+                <option value="loss">패 (loss)</option>
+                <option value="breakeven">본전</option>
+              </select>
+            </label>
+            <label>손익금액($)<input id="form-pnl-amount" type="number" step="any" placeholder="0.00" /></label>
+            <label>손익률(%)<input id="form-pnl-pct" type="number" step="any" placeholder="0.00" /></label>
+            <label>R-multiple<input id="form-r-multiple" type="number" step="any" placeholder="1.5" /></label>
+            <label>수수료($)<input id="form-fee" type="number" step="any" placeholder="0.00" /></label>
+          </div>
+          <label style="display:block; margin-top:10px;">
+            메모
+            <textarea id="form-memo" rows="2" placeholder="메모 입력..." style="width:100%; margin-top:4px; background:#21262d; border:1px solid #30363d; color:#e6edf3; padding:8px; border-radius:6px; resize:vertical;"></textarea>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button id="modal-save-btn" class="btn-primary">저장</button>
+          <button id="modal-cancel-btn" class="btn-ghost">취소</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tab-journal -->
 
   <script src="/static/app.js"></script>
 </body>

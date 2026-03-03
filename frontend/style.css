@@ -266,6 +266,69 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
   min-height: 0;
 }
 
+/* 볼린저밴드 파라미터 + 롱/숏 버튼 바 */
+.bb-control-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* 파라미터 레이블+입력 세트 */
+.bb-param-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bb-param-input {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  width: 60px;
+  text-align: center;
+}
+.bb-param-input:focus { outline: none; border-color: var(--blue); }
+
+/* 롱/숏 신호 버튼 */
+.btn-signal {
+  padding: 6px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+  transition: all 0.15s;
+}
+
+.btn-long {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--green);
+  border: 1px solid var(--green);
+}
+.btn-long:hover {
+  background: var(--green);
+  color: #fff;
+}
+
+.btn-short {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+.btn-short:hover {
+  background: var(--red);
+  color: #fff;
+}
+
 #chart-container { flex: 1; min-height: 0; }
 
 .price-info-bar {
@@ -384,6 +447,124 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
 }
 .chat-input-row input:focus { outline: none; border-color: var(--blue); }
 
+/* ── 3-TF 비교 패널 ────────────────────────────────────────── */
+.tf-panel-section {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+  flex-shrink: 0;
+}
+
+.tf-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tf-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+/* 3개 TF 카드 가로 배치 */
+.tf-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+/* 개별 TF 카드 */
+.tf-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.tf-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  letter-spacing: 0.4px;
+}
+
+/* TF 카드 내부 테이블 */
+.tf-card-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.tf-card-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+.tf-card-table td:first-child {
+  color: var(--text-muted);
+  width: 55%;
+}
+.tf-card-table tr:last-child td { border-bottom: none; }
+
+
+/* ── 전략 수정 가이드 섹션 ─────────────────────────────────── */
+.strategy-guide-section {
+  margin: 0 16px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.strategy-guide-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+}
+
+.strategy-guide-title {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.strategy-guide-output {
+  padding: 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  min-height: 60px;
+}
+
+/* 가이드 섹션 내 강조 텍스트 */
+.guide-section-title {
+  font-weight: 700;
+  color: var(--blue);
+  margin: 10px 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.guide-item {
+  padding: 4px 0 4px 12px;
+  border-left: 2px solid var(--border);
+  margin: 3px 0;
+  font-size: 12px;
+}
+
+.guide-item.problem { border-left-color: var(--red); }
+.guide-item.action  { border-left-color: var(--green); }
+.guide-item.plan    { border-left-color: var(--blue); }
+
+
 /* ── 매매 일지 섹션 ──────────────────────────────────────────── */
 .journal-section {
   background: var(--bg-secondary);
@@ -427,3 +608,279 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   탭 네비게이션 (Tab A: Signal/Chart, Tab B: Journal/Analytics)
+   ══════════════════════════════════════════════════════════════ */
+
+/* 탭 버튼들이 나란히 놓이는 바 */
+.tab-nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* 개별 탭 버튼 */
+.tab-btn {
+  padding: 6px 22px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.tab-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* 현재 선택된 탭 강조 */
+.tab-btn.active {
+  background: #1f6feb;
+  color: #fff;
+  border-color: #1f6feb;
+}
+
+/* 탭 콘텐츠 — 선택되지 않은 탭은 숨김 */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Tab A는 flex 컬럼으로 차트+저널 세로 배치 */
+#tab-signal {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+#tab-signal.active {
+  display: flex;
+}
+
+/* Tab B는 스크롤 가능한 일반 블록 */
+#tab-journal {
+  display: none;
+  overflow-y: auto;
+  height: calc(100vh - 90px); /* 헤더+탭바 높이 제외 */
+}
+#tab-journal.active {
+  display: block;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   KPI 카드 섹션 — 8개 성과 지표 카드
+   ══════════════════════════════════════════════════════════════ */
+
+.kpi-section {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 한 줄에 4개 */
+  gap: 12px;
+  padding: 16px 16px 8px;
+}
+
+/* 개별 KPI 카드 */
+.kpi-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.kpi-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+/* 양수(이익) = 초록, 음수(손실) = 빨강 */
+.kpi-value.positive { color: var(--green); }
+.kpi-value.negative { color: var(--red); }
+
+
+/* ══════════════════════════════════════════════════════════════
+   Analytics 차트 시각화 영역 (Chart.js 캔버스 3개)
+   ══════════════════════════════════════════════════════════════ */
+
+.analytics-charts {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr; /* Equity Curve가 더 넓게 */
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+/* 차트 박스 (캔버스 감싸는 컨테이너) */
+.analytics-chart-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.analytics-chart-title {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* 캔버스 최대 높이 제한 */
+.analytics-chart-box canvas {
+  max-height: 180px;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   확장 저널 테이블 (Journal Advanced) — Tab B 전용
+   ══════════════════════════════════════════════════════════════ */
+
+.journal-advanced {
+  padding: 0 16px 16px;
+}
+
+/* 필터 + 버튼 툴바 */
+.journal-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.journal-filter-input,
+.journal-filter-select {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.journal-filter-input { width: 160px; }
+.journal-filter-input:focus,
+.journal-filter-select:focus { outline: none; border-color: var(--blue); }
+
+/* 확장 저널 테이블 래퍼 — 가로 스크롤 허용 */
+.journal-table-v2-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+/* 확장 저널 테이블 */
+.journal-table-v2 {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 1100px; /* 컬럼이 많아 가로 스크롤 필요 */
+}
+
+.journal-table-v2 th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.journal-table-v2 td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--bg-card);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.journal-table-v2 tr:hover td { background: var(--bg-hover); }
+
+
+/* ══════════════════════════════════════════════════════════════
+   모달 (새 매매 추가 / 수정 폼)
+   ══════════════════════════════════════════════════════════════ */
+
+/* 모달 배경 오버레이 — 화면 전체를 반투명하게 덮음 */
+.modal-overlay {
+  position: fixed;
+  inset: 0; /* top/right/bottom/left 모두 0 */
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* 모달 본체 */
+.modal-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 560px;
+  max-width: 96vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.modal-body {
+  margin-bottom: 16px;
+}
+
+/* 폼 필드 2열 그리드 */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.form-grid label input,
+.form-grid label select {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.form-grid label input:focus,
+.form-grid label select:focus { outline: none; border-color: var(--blue); }
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
