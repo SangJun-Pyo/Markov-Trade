@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Markov Trade</title>
+
+  <!-- TradingView 차트 라이브러리 (CDN — 설치 불필요) -->
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- ── 헤더 ──────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-left">
+      <!-- 사이드바 접기/펼치기 버튼 -->
+      <button id="sidebar-toggle" class="btn-icon" title="종목 패널 열기/닫기">☰</button>
+      <span class="logo">Markov Trade</span>
+    </div>
+
+    <div class="header-center">
+      <!-- 직접 종목 코드 입력 (사이드바 외에도 검색 가능) -->
+      <input id="ticker-input" type="text" placeholder="종목 코드 직접 입력 (예: BTC-USD)" />
+
+      <select id="period-select">
+        <option value="5d">5일</option>
+        <option value="1mo" selected>1개월</option>
+        <option value="3mo">3개월</option>
+        <option value="6mo">6개월</option>
+      </select>
+
+      <select id="interval-select">
+        <option value="15m">15분</option>
+        <option value="1h" selected>1시간</option>
+        <option value="1d">1일</option>
+      </select>
+
+      <button id="load-btn" class="btn-primary">조회</button>
+    </div>
+
+    <div class="header-right">
+      <!-- 현재 선택된 종목명과 가격 표시 -->
+      <span id="active-ticker-name" class="active-ticker">—</span>
+      <span id="current-price-display" class="price-display">—</span>
+    </div>
+  </header>
+
+  <!-- ── 메인: 사이드바 + 차트 + 채팅 ────────────────────────── -->
+  <main class="main-grid" id="main-grid">
+
+    <!-- 왼쪽: 종목 선택 사이드바 -->
+    <aside class="market-sidebar" id="market-sidebar">
+      <div class="sidebar-inner">
+        <!-- JavaScript가 여기에 종목 트리를 렌더링 -->
+        <div id="market-tree"></div>
+      </div>
+    </aside>
+
+    <!-- 가운데: 캔들 차트 -->
+    <section class="chart-section">
+      <div id="chart-container"></div>
+      <!-- 차트 하단 가격 정보 바 -->
+      <div id="price-info" class="price-info-bar">
+        <span id="info-ticker" class="muted">—</span>
+        <span id="info-open">시가 —</span>
+        <span id="info-high" class="green">고가 —</span>
+        <span id="info-low" class="red">저가 —</span>
+        <span id="info-close">현재가 —</span>
+      </div>
+    </section>
+
+    <!-- 오른쪽: AI 채팅 -->
+    <section class="chat-section">
+      <div class="chat-header">
+        <span>🤖 AI 분석</span>
+        <button id="reset-btn" class="btn-ghost">초기화</button>
+      </div>
+      <div id="chat-messages" class="chat-messages"></div>
+      <div class="chat-input-row">
+        <input id="chat-input" type="text" placeholder="분석 요청..." />
+        <button id="send-btn" class="btn-primary">전송</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── 하단: 매매 일지 ───────────────────────────────────────── -->
+  <section class="journal-section">
+
+    <div class="stats-bar">
+      <div class="stat-card">
+        <span class="stat-label">총 매매</span>
+        <span id="stat-total" class="stat-value">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">승</span>
+        <span id="stat-win" class="stat-value green">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">패</span>
+        <span id="stat-loss" class="stat-value red">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">승률</span>
+        <span id="stat-winrate" class="stat-value">—</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">진행 중</span>
+        <span id="stat-open" class="stat-value yellow">0</span>
+      </div>
+    </div>
+
+    <div class="journal-table-wrap">
+      <table class="journal-table">
+        <thead>
+          <tr>
+            <th>ID</th><th>시간</th><th>종목</th><th>방향</th>
+            <th>진입가</th><th>손절가</th><th>TP1</th><th>레버리지</th>
+            <th>결과</th><th>손익</th><th>메모</th><th>삭제</th>
+          </tr>
+        </thead>
+        <tbody id="journal-tbody"></tbody>
+      </table>
+      <p id="journal-empty" class="empty-msg">기록된 매매가 없습니다.</p>
+    </div>
+
+  </section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

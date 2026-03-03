@@ -1,0 +1,371 @@
+/* ── 색상 변수 (다크 트레이딩 테마) ──────────────────────────────── */
+:root {
+  --bg-primary:    #0d1117;
+  --bg-secondary:  #161b22;
+  --bg-card:       #21262d;
+  --bg-hover:      #2d333b;
+  --border:        #30363d;
+  --green:         #3fb950;
+  --red:           #f85149;
+  --yellow:        #d29922;
+  --blue:          #58a6ff;
+  --purple:        #bc8cff;   /* 선물 카테고리 색 */
+  --text-primary:  #e6edf3;
+  --text-muted:    #8b949e;
+  --sidebar-width: 210px;     /* 사이드바 너비 — 여기만 바꾸면 전체 반영 */
+}
+
+/* ── 기본 리셋 ────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Segoe UI', 'Noto Sans KR', sans-serif;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── 헤더 ─────────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* 사이드바 토글 버튼 */
+.btn-icon {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.btn-icon:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.logo {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+  color: var(--blue);
+}
+
+.header-center {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+}
+
+.header-center input[type="text"] {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: 6px;
+  width: 200px;
+  font-size: 13px;
+}
+.header-center input[type="text"]:focus { outline: none; border-color: var(--blue); }
+
+.header-center select {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* 현재 선택된 종목명 */
+.active-ticker {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* 현재가 숫자 */
+.price-display {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--blue);
+  white-space: nowrap;
+}
+
+/* ── 버튼 ─────────────────────────────────────────────────────── */
+button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; padding: 6px 14px; transition: background 0.15s; }
+.btn-primary { background: var(--blue); color: #fff; font-weight: 600; }
+.btn-primary:hover { background: #4493e5; }
+.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); font-size: 12px; }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* ── 메인 그리드: 사이드바 | 차트 | 채팅 ──────────────────────── */
+.main-grid {
+  display: grid;
+  /* 사이드바 | 차트(남은 공간) | 채팅(고정) */
+  grid-template-columns: var(--sidebar-width) 1fr 360px;
+  flex: 1;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+  transition: grid-template-columns 0.2s ease;  /* 사이드바 접힐 때 부드럽게 */
+}
+
+/* 사이드바가 닫혔을 때 — 너비를 0으로 */
+.main-grid.sidebar-collapsed {
+  grid-template-columns: 0 1fr 360px;
+}
+
+/* ── 사이드바 ─────────────────────────────────────────────────── */
+.market-sidebar {
+  overflow: hidden;           /* 너비가 0이 되면 내용 숨김 */
+  border-right: 1px solid var(--border);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 사이드바 안쪽 스크롤 영역 */
+.sidebar-inner {
+  overflow-y: auto;
+  flex: 1;
+  padding: 8px 0;
+  min-width: var(--sidebar-width); /* 접힐 때 내용이 찌그러지지 않게 고정 */
+}
+
+/* ─ 카테고리 (선물 / 주식 / 코인) ─ */
+.tree-category {
+  padding: 0;
+  margin-bottom: 2px;
+}
+
+/* 카테고리 헤더 버튼 */
+.tree-category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  border-radius: 0;
+  transition: background 0.1s;
+}
+.tree-category-header:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* 카테고리 화살표 (▶ 펼침 / ▼ 접힘) */
+.tree-arrow { font-size: 10px; transition: transform 0.15s; }
+.tree-category.open .tree-arrow { transform: rotate(90deg); }
+
+/* 카테고리 하위 내용 */
+.tree-category-body { display: none; }
+.tree-category.open .tree-category-body { display: block; }
+
+/* ─ 서브카테고리 (해외 지수 / 국내 주식 등) ─ */
+.tree-sub {
+  margin-bottom: 1px;
+}
+
+.tree-sub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 12px 5px 20px;  /* 들여쓰기로 카테고리와 구분 */
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  border-radius: 0;
+}
+.tree-sub-header:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.tree-sub-body { display: none; }
+.tree-sub.open .tree-sub-body { display: block; }
+.tree-sub .tree-arrow { font-size: 9px; }
+.tree-sub.open .tree-arrow { transform: rotate(90deg); }
+
+/* ─ 개별 종목 아이템 ─ */
+.tree-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 12px 5px 28px; /* 서브카테고리보다 더 들여쓰기 */
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-primary);
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  border-radius: 0;
+  transition: background 0.1s;
+}
+.tree-item:hover { background: var(--bg-hover); }
+
+/* 현재 선택된 종목 강조 */
+.tree-item.active {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--blue);
+  border-left: 2px solid var(--blue);
+  padding-left: 26px;
+}
+
+/* 종목 코드 (오른쪽에 희미하게) */
+.tree-ticker-code {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ── 차트 섹션 ────────────────────────────────────────────────── */
+.chart-section {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  min-height: 0;
+}
+
+#chart-container { flex: 1; min-height: 0; }
+
+.price-info-bar {
+  display: flex;
+  gap: 16px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ── 채팅 섹션 ────────────────────────────────────────────────── */
+.chat-section { display: flex; flex-direction: column; min-height: 0; background: var(--bg-secondary); }
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.msg {
+  max-width: 92%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+.msg.user      { align-self: flex-end; background: var(--blue); color: #fff; border-bottom-right-radius: 2px; }
+.msg.assistant { align-self: flex-start; background: var(--bg-card); color: var(--text-primary); border-bottom-left-radius: 2px; }
+.msg.loading   { align-self: flex-start; color: var(--text-muted); font-style: italic; }
+
+.chat-input-row { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.chat-input-row input {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.chat-input-row input:focus { outline: none; border-color: var(--blue); }
+
+/* ── 매매 일지 섹션 ──────────────────────────────────────────── */
+.journal-section {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 200px;
+  flex-shrink: 0;
+}
+
+.stats-bar { display: flex; gap: 2px; padding: 6px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.stat-card { display: flex; flex-direction: column; align-items: center; padding: 4px 16px; border-right: 1px solid var(--border); min-width: 80px; }
+.stat-card:last-child { border-right: none; }
+.stat-label { font-size: 11px; color: var(--text-muted); }
+.stat-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+
+.journal-table-wrap { overflow-y: auto; flex: 1; }
+.journal-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.journal-table th {
+  position: sticky; top: 0;
+  background: var(--bg-card); color: var(--text-muted);
+  padding: 5px 10px; text-align: left;
+  border-bottom: 1px solid var(--border); font-weight: 500;
+}
+.journal-table td { padding: 4px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.journal-table tr:hover td { background: var(--bg-hover); }
+
+.btn-delete { background: transparent; color: var(--red); border: 1px solid var(--red); padding: 2px 8px; font-size: 11px; border-radius: 4px; }
+.btn-delete:hover { background: var(--red); color: #fff; }
+
+.empty-msg { text-align: center; color: var(--text-muted); padding: 20px; font-size: 13px; }
+
+/* ── 색상 유틸 ────────────────────────────────────────────────── */
+.green  { color: var(--green)  !important; }
+.red    { color: var(--red)    !important; }
+.yellow { color: var(--yellow) !important; }
+.blue   { color: var(--blue)   !important; }
+.muted  { color: var(--text-muted); }
+
+/* ── 스크롤바 ─────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
