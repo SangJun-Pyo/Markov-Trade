@@ -263,16 +263,51 @@ async function loadPriceInfo(ticker) {
 }
 
 
-// ── 6. AI 채팅 ───────────────────────────────────────────────────
+// ── 6. 모델 선택 토글 ───────────────────────────────────────────
+
+// 현재 선택된 모델 (기본값: gemini)
+let selectedModel = 'gemini';
+
+// 모델 버튼들에 클릭 이벤트 연결
+document.querySelectorAll('.model-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    // 모든 버튼에서 active 제거 후 클릭한 버튼에 추가
+    document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // 선택된 모델 업데이트
+    selectedModel = btn.dataset.model;
+  });
+});
+
+
+// ── 7. AI 채팅 ───────────────────────────────────────────────────
 
 const chatMessages = document.getElementById('chat-messages');
 
-function appendMessage(role, text) {
+// 채팅창에 메시지를 추가하는 함수
+// modelLabel: 응답 메시지에 어떤 모델이 답했는지 배지 표시용 (선택)
+function appendMessage(role, text, modelLabel = null) {
+  const wrapper = document.createElement('div');
+  wrapper.style.display = 'flex';
+  wrapper.style.flexDirection = 'column';
+  wrapper.style.alignItems = role === 'user' ? 'flex-end' : 'flex-start';
+
+  // 에이전트 응답이면 어떤 모델인지 배지 표시
+  if (role === 'assistant' && modelLabel) {
+    const badge = document.createElement('span');
+    badge.className = `model-badge ${modelLabel}`;
+    badge.textContent = modelLabel === 'claude' ? '◆ Claude' : '◈ Gemini';
+    wrapper.appendChild(badge);
+  }
+
   const div = document.createElement('div');
   div.className = `msg ${role}`;
   div.textContent = text;
-  chatMessages.appendChild(div);
-  chatMessages.scrollTop = chatMessages.scrollHeight;  // 항상 최신 메시지로 스크롤
+  wrapper.appendChild(div);
+
+  chatMessages.appendChild(wrapper);
+  chatMessages.scrollTop = chatMessages.scrollHeight;  // 최신 메시지로 스크롤
   return div;
 }
 
@@ -284,34 +319,40 @@ async function sendMessage() {
   input.value = '';
   appendMessage('user', text);
 
-  const loadingDiv = appendMessage('loading', '분석 중...');
+  // 로딩 표시 (현재 선택된 모델 이름 포함)
+  const modelLabel  = selectedModel;
+  const loadingDiv  = appendMessage('loading', `${modelLabel === 'claude' ? '◆ Claude' : '◈ Gemini'} 분석 중...`);
 
   try {
     const res  = await fetch('/chat', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ message: text }),
+      // 선택된 모델 값을 함께 전송
+      body:    JSON.stringify({ message: text, model: selectedModel }),
     });
     const data = await res.json();
 
-    loadingDiv.className  = 'msg assistant';
-    loadingDiv.textContent = data.reply;
+    // 로딩 메시지를 실제 응답으로 교체
+    loadingDiv.parentElement.remove();               // wrapper 전체 제거
+    appendMessage('assistant', data.reply, data.model);  // 실제 사용 모델로 배지 표시
+
   } catch {
-    loadingDiv.className  = 'msg assistant';
-    loadingDiv.textContent = '⚠️ 서버 오류. 서버가 실행 중인지 확인하세요.';
+    loadingDiv.parentElement.remove();
+    appendMessage('assistant', '⚠️ 서버 오류. 서버가 실행 중인지 확인하세요.');
   }
 
   await loadJournal();  // 에이전트가 일지를 기록했을 수 있으므로 갱신
 }
 
 async function resetChat() {
-  await fetch('/reset', { method: 'POST' });
+  // 현재 선택된 모델의 대화만 초기화
+  await fetch(`/reset?model=${selectedModel}`, { method: 'POST' });
   chatMessages.innerHTML = '';
-  appendMessage('assistant', '대화가 초기화되었습니다. 새 분석을 시작하세요.');
+  appendMessage('assistant', `${selectedModel === 'claude' ? 'Claude' : 'Gemini'} 대화가 초기화되었습니다.`);
 }
 
 
-// ── 7. 매매 일지 ─────────────────────────────────────────────────
+// ── 8. 매매 일지 ─────────────────────────────────────────────────
 
 async function loadJournal() {
   try {
@@ -380,7 +421,7 @@ async function deleteTrade(tradeId) {
 }
 
 
-// ── 8. 이벤트 연결 ──────────────────────────────────────────────
+// ── 9. 이벤트 연결 ──────────────────────────────────────────────
 
 document.getElementById('load-btn').addEventListener('click', loadChart);
 document.getElementById('ticker-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadChart(); });
@@ -389,7 +430,7 @@ document.getElementById('chat-input').addEventListener('keydown', e => { if (e.k
 document.getElementById('reset-btn').addEventListener('click', resetChat);
 
 
-// ── 9. 앱 시작 ──────────────────────────────────────────────────
+// ── 10. 앱 시작 ──────────────────────────────────────────────────
 
 (async function init() {
   // 사이드바 트리 렌더링

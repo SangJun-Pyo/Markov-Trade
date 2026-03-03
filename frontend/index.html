@@ -77,6 +77,17 @@
         <span>🤖 AI 분석</span>
         <button id="reset-btn" class="btn-ghost">초기화</button>
       </div>
+
+      <!-- 모델 선택 토글 — Claude 또는 Gemini 선택 -->
+      <div class="model-toggle-bar">
+        <button class="model-btn" id="btn-claude" data-model="claude">
+          <span class="model-dot claude-dot"></span>Claude
+        </button>
+        <button class="model-btn active" id="btn-gemini" data-model="gemini">
+          <span class="model-dot gemini-dot"></span>Gemini
+        </button>
+      </div>
+
       <div id="chat-messages" class="chat-messages"></div>
       <div class="chat-input-row">
         <input id="chat-input" type="text" placeholder="분석 요청..." />

@@ -292,6 +292,64 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
   flex-shrink: 0;
 }
 
+/* ── 모델 선택 토글 바 ────────────────────────────────────────── */
+.model-toggle-bar {
+  display: flex;
+  padding: 8px 12px;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* 개별 모델 버튼 */
+.model-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;           /* 알약 모양 */
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.model-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* 선택된 모델 버튼 강조 */
+.model-btn.active {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+/* 모델 색상 점 (Claude=보라, Gemini=파랑) */
+.model-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.claude-dot { background: #bc8cff; }    /* 보라색 — Anthropic 브랜드 */
+.gemini-dot { background: #4285f4; }    /* 파란색 — Google 브랜드 */
+
+/* 선택 상태일 때 점도 밝게 */
+.model-btn.active .claude-dot { box-shadow: 0 0 5px #bc8cff; }
+.model-btn.active .gemini-dot { box-shadow: 0 0 5px #4285f4; }
+
+/* 채팅 메시지에 어떤 모델이 답했는지 표시하는 배지 */
+.model-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-bottom: 3px;
+  display: inline-block;
+}
+.model-badge.claude { background: rgba(188,140,255,0.15); color: #bc8cff; }
+.model-badge.gemini { background: rgba(66,133,244,0.15);  color: #4285f4; }
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;

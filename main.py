@@ -1,7 +1,6 @@
 """
-main.py — FastAPI 웹 서버
+main.py — Markov Trade FastAPI 서버
 실행: uvicorn main:app --reload --port 8000
-브라우저: http://localhost:8000
 """
 
 import os
@@ -15,18 +14,19 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-# 내가 만든 에이전트와 도구 파일을 불러옴
-from agent import ChartPlannerAgent
+# 내가 만든 모듈들을 불러옴
+from agent import ChartPlannerAgent           # Claude 에이전트 (Tool Use 포함)
+from llm import create_gemini_agent           # Gemini 에이전트 팩토리
 from tools import _load_journal, _save_journal, get_ohlcv_for_chart, handle_get_price
 
-# .env 파일에서 API 키 불러오기
+# .env에서 API 키 불러오기
 load_dotenv()
 
 # ─── FastAPI 앱 생성 ────────────────────────────────────────────────
 
-app = FastAPI(title="차트 기획자", docs_url=None, redoc_url=None)
+app = FastAPI(title="Markov Trade", docs_url=None, redoc_url=None)
 
-# 브라우저에서 API를 자유롭게 호출할 수 있도록 CORS 허용 (개인 로컬용이라 전체 허용)
+# 개인 로컬 앱이므로 CORS 전체 허용
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,44 +34,52 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# frontend/ 폴더를 /static 경로로 제공 (CSS, JS 파일을 브라우저가 받아갈 수 있게)
+# frontend/ 폴더를 /static 경로로 제공
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
-# ─── 에이전트 인스턴스 ────────────────────────────────────────────────
-# 서버가 켜지면 에이전트를 한 번만 만들어서 계속 사용 (개인용이라 1개면 충분)
-agent = ChartPlannerAgent()
+
+# ─── 에이전트 인스턴스 (서버 시작 시 한 번 생성) ─────────────────────
+
+# Claude 에이전트 — Tool Use(가격 조회, 리스크 계산, 일지 저장 등) 포함
+claude_agent = ChartPlannerAgent()
+
+# Gemini 에이전트 — 텍스트 분석 전용, API 키가 없으면 None
+# (None이면 Gemini 선택 시 에러 메시지 반환)
+gemini_agent = create_gemini_agent()
 
 
-# ─── 요청/응답 데이터 형태 정의 (Pydantic) ────────────────────────────
+# ─── 요청/응답 데이터 형태 정의 ──────────────────────────────────────
 
 class ChatRequest(BaseModel):
-    """채팅 요청: 사용자가 입력한 메시지"""
-    message: str
+    """채팅 요청"""
+    message: str                  # 사용자가 입력한 메시지
+    model:   str = "gemini"       # 사용할 모델: "claude" 또는 "gemini" (기본값: gemini)
 
 class ChatResponse(BaseModel):
-    """채팅 응답: 에이전트가 돌려주는 메시지"""
-    reply: str
+    """채팅 응답"""
+    reply:  str                   # 에이전트 응답 텍스트
+    model:  str                   # 실제로 사용된 모델 이름 (프론트에서 표시용)
 
 class TradeLog(BaseModel):
-    """매매 기록 저장 요청 형태"""
-    ticker:    str            # 종목 (예: BTC-USD)
-    direction: str            # 방향: "롱" 또는 "숏"
-    entry:     float          # 진입가
-    stop_loss: float          # 손절가
-    tp1:       float | None = None  # 1차 목표가 (선택)
-    tp2:       float | None = None  # 2차 목표가 (선택)
-    leverage:  int   = 1      # 레버리지 배수
-    result:    str   = "open" # 결과: win / loss / breakeven / open
-    pnl:       str   = ""     # 손익 (예: +3.5%)
-    memo:      str   = ""     # 메모
+    """매매 기록 저장 요청"""
+    ticker:    str
+    direction: str
+    entry:     float
+    stop_loss: float
+    tp1:       float | None = None
+    tp2:       float | None = None
+    leverage:  int   = 1
+    result:    str   = "open"
+    pnl:       str   = ""
+    memo:      str   = ""
 
 
-# ─── 라우터 (엔드포인트) 정의 ─────────────────────────────────────────
+# ─── 엔드포인트 ──────────────────────────────────────────────────────
 
 @app.get("/")
 def serve_index():
-    """브라우저에서 주소를 치면 index.html을 돌려줌"""
+    """브라우저 접속 시 index.html 제공"""
     index_path = FRONTEND_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="index.html이 없습니다.")
@@ -81,26 +89,59 @@ def serve_index():
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
     """
-    사용자 메시지를 에이전트에 전달하고 분석 결과를 받아서 돌려줌.
-    에이전트가 필요하면 yfinance 조회, 리스크 계산 등의 도구를 자동으로 사용함.
+    사용자 메시지를 선택된 모델에 전달하고 응답을 반환.
+    model 파라미터 값에 따라 Claude 또는 Gemini로 분기.
+    한 모델이 실패해도 서버가 죽지 않도록 예외 처리.
     """
-    reply = agent.chat(req.message)
-    return ChatResponse(reply=reply)
+    model_name = req.model.lower()  # 대소문자 구분 없이 처리
+
+    try:
+        if model_name == "claude":
+            # Claude — Tool Use 포함 agentic loop 실행
+            reply = claude_agent.chat(req.message)
+
+        elif model_name == "gemini":
+            # Gemini — 초기화 실패 시 안내 메시지 반환
+            if gemini_agent is None:
+                reply = (
+                    "⚠️ Gemini를 사용할 수 없습니다.\n"
+                    ".env 파일에 GEMINI_API_KEY를 추가하고 서버를 재시작하세요.\n"
+                    "pip install google-generativeai 도 필요합니다."
+                )
+            else:
+                reply = gemini_agent.chat(req.message)
+
+        else:
+            # 알 수 없는 모델 값이 들어온 경우
+            reply = f"⚠️ 알 수 없는 모델: '{req.model}'. 'claude' 또는 'gemini'를 사용하세요."
+
+    except Exception as e:
+        # 예상치 못한 오류가 나도 서버가 죽지 않게 처리
+        reply = f"⚠️ 오류가 발생했습니다: {str(e)}"
+        model_name = req.model
+
+    return ChatResponse(reply=reply, model=model_name)
 
 
 @app.post("/reset")
-def reset_chat():
-    """대화 기록을 초기화 — 새 주제로 분석 시작할 때 사용"""
-    agent.reset()
-    return {"status": "ok", "message": "대화 기록이 초기화되었습니다."}
+def reset_chat(model: str = "all"):
+    """
+    대화 기록 초기화.
+    model 쿼리 파라미터로 특정 모델만 초기화 가능.
+    예: /reset?model=claude, /reset?model=gemini, /reset?model=all
+    """
+    if model in ("claude", "all"):
+        claude_agent.reset()
+
+    if model in ("gemini", "all") and gemini_agent:
+        gemini_agent.reset()
+
+    return {"status": "ok", "reset": model}
 
 
 @app.get("/price/{ticker}")
 def get_price(ticker: str, period: str = "5d", interval: str = "1h"):
-    """
-    종목의 현재가와 기간 내 고/저점을 조회.
-    예: /price/BTC-USD?period=5d&interval=1h
-    """
+    """현재가 + 기간 내 고/저점 조회"""
     data = handle_get_price({"ticker": ticker, "period": period, "interval": interval})
     if "error" in data:
         raise HTTPException(status_code=404, detail=data["error"])
@@ -109,11 +150,7 @@ def get_price(ticker: str, period: str = "5d", interval: str = "1h"):
 
 @app.get("/price/{ticker}/ohlcv")
 def get_ohlcv(ticker: str, period: str = "1mo", interval: str = "1h"):
-    """
-    TradingView 차트에 바로 꽂을 수 있는 OHLCV 데이터 반환.
-    예: /price/BTC-USD/ohlcv?period=1mo&interval=1h
-    반환 형식: [{ time, open, high, low, close }, ...]
-    """
+    """TradingView 차트용 OHLCV 데이터 반환"""
     data = get_ohlcv_for_chart(ticker, period, interval)
     if not data:
         raise HTTPException(status_code=404, detail=f"{ticker} 데이터를 가져올 수 없습니다.")
@@ -122,20 +159,17 @@ def get_ohlcv(ticker: str, period: str = "1mo", interval: str = "1h"):
 
 @app.get("/journal")
 def get_journal():
-    """저장된 매매 일지 전체를 반환"""
+    """매매 일지 전체 조회"""
     return _load_journal()
 
 
 @app.post("/journal")
 def add_trade(trade: TradeLog):
-    """새 매매 기록을 일지에 추가"""
+    """새 매매 기록 추가"""
     journal = _load_journal()
-
-    # 새 기록에 ID와 기록 시간 자동 부여
     entry = trade.model_dump()
     entry["id"]        = f"trade_{len(journal['trades']) + 1:04d}"
     entry["timestamp"] = datetime.now().isoformat()
-
     journal["trades"].append(entry)
     _save_journal(journal)
     return {"status": "저장 완료", "id": entry["id"]}
@@ -143,15 +177,11 @@ def add_trade(trade: TradeLog):
 
 @app.delete("/journal/{trade_id}")
 def delete_trade(trade_id: str):
-    """특정 ID의 매매 기록을 삭제"""
+    """특정 매매 기록 삭제"""
     journal = _load_journal()
     before  = len(journal["trades"])
-
-    # 해당 ID가 아닌 것만 남김 (= 해당 ID 삭제)
     journal["trades"] = [t for t in journal["trades"] if t.get("id") != trade_id]
-
     if len(journal["trades"]) == before:
         raise HTTPException(status_code=404, detail=f"{trade_id}를 찾을 수 없습니다.")
-
     _save_journal(journal)
     return {"status": "삭제 완료", "id": trade_id}
