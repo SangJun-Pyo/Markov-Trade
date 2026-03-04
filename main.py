@@ -4,6 +4,8 @@ main.py — Markov Trade FastAPI 서버
 """
 
 import os
+import random      # Monte Carlo 시뮬레이션용 — 순열 셔플
+import statistics  # 평균/중앙값 계산용
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -86,6 +88,25 @@ class TradeLog(BaseModel):
     pnl_amount: float | None = None   # 손익 금액 (달러, 숫자형)
     pnl_pct:    float | None = None   # 손익률 (%, 숫자형)
     r_multiple: float | None = None   # R-multiple (예: 1.5 = 리스크의 1.5배 수익)
+
+
+class SimulateRequest(BaseModel):
+    """
+    Monte Carlo 리스크 시뮬레이션 요청.
+    Permutation(순서 랜덤화) 방식으로 1,000회 반복 실행.
+    """
+    win_rate:   float          # 승률 (0~1 사이 소수, 예: 0.55 = 55%)
+    avg_win_R:  float          # 평균 이익 R-multiple (예: 1.5 = 진입 리스크의 1.5배 수익)
+    avg_loss_R: float          # 평균 손실 R-multiple (양수로 입력, 예: 1.0 = 1R 손실)
+    n_trades:   int   = 100    # 시뮬레이션할 트레이드 수 (샘플 크기)
+    leverage:   float = 1.0    # 레버리지 (파산 임계값 계산에 사용)
+    runs:       int   = 1000   # 시뮬레이션 반복 횟수 (많을수록 정확하지만 느림)
+    cache_key:  str   = ""     # 캐싱 키 — 같은 파라미터 재요청 시 캐시에서 반환
+
+
+# ─── 시뮬레이션 결과 서버 메모리 캐시 ────────────────────────────────
+# 같은 (종목 + 파라미터) 조합이 반복 요청될 때 연산 재사용
+_sim_cache: dict = {}
 
 
 # ─── 엔드포인트 ──────────────────────────────────────────────────────
@@ -241,3 +262,114 @@ def delete_trade(trade_id: str):
         raise HTTPException(status_code=404, detail=f"{trade_id}를 찾을 수 없습니다.")
     _save_journal(journal)
     return {"status": "삭제 완료", "id": trade_id}
+
+
+@app.post("/simulate")
+def run_simulation(req: SimulateRequest):
+    """
+    Monte Carlo 리스크 시뮬레이션 (Permutation + Fixed R 방식).
+
+    동작 원리:
+    1) 승/패 R-multiple 배열을 win_rate 비율로 구성
+    2) 배열을 1,000회 무작위로 섞어 각 경로의 최종 자본과 최대 낙폭 계산
+    3) 분포의 하위 5%, 상위 95% 퍼센타일로 최악/평균 시나리오 산출
+
+    파산 기준: 누적 손실이 -50R 이하 (계정의 절반 이상 손실로 정의)
+    """
+    # ── 캐시 확인 ──────────────────────────────────────────────────────
+    # 같은 파라미터로 반복 요청 시 재연산 없이 캐시 반환 (성능 최적화)
+    if req.cache_key and req.cache_key in _sim_cache:
+        return _sim_cache[req.cache_key]
+
+    # ── R-multiple 배열 구성 ────────────────────────────────────────────
+    # win_rate에 따라 이익(+avg_win_R)과 손실(-avg_loss_R) 분포 생성
+    n_wins  = max(0, int(req.n_trades * req.win_rate))
+    n_loses = max(0, req.n_trades - n_wins)
+    # 이익 트레이드는 양수 R, 손실 트레이드는 음수 R로 배열 구성
+    r_array = [req.avg_win_R] * n_wins + [-req.avg_loss_R] * n_loses
+
+    if not r_array:
+        raise HTTPException(status_code=400, detail="n_trades가 너무 작습니다.")
+
+    # ── Permutation 방식 1,000회 시뮬레이션 ─────────────────────────────
+    # 같은 승/패 비율을 다른 순서로 경험했을 때 결과가 어떻게 달라지는지 측정
+    RUIN_THRESHOLD = -50.0  # 파산 기준: 누적 -50R 이하 (초기 자본의 절반 이상 손실)
+
+    final_Rs       = []  # 각 run의 최종 누적 R
+    max_dd_pcts    = []  # 각 run의 최대 낙폭 (초기 자본 대비 %)
+    ruin_count     = 0   # 파산한 run 수
+    loss_streaks   = []  # 각 run의 최대 연속 손실 수
+
+    for _ in range(req.runs):
+        run = r_array[:]        # 원본 배열 복사 (원본 보호)
+        random.shuffle(run)     # 순서를 무작위로 섞어 다른 경로 시뮬레이션
+
+        equity     = 0.0   # 누적 R (시작: 0)
+        peak       = 0.0   # 지금까지의 최고 자산
+        max_dd     = 0.0   # 이번 run의 최대 낙폭
+        cur_streak = 0     # 현재 연속 손실 수
+        max_streak = 0     # 이번 run의 최대 연속 손실
+        ruined     = False # 파산 여부
+
+        for r in run:
+            equity += r
+
+            # 최고점 갱신 및 낙폭 계산
+            if equity > peak:
+                peak = equity
+            dd = peak - equity
+            if dd > max_dd:
+                max_dd = dd
+
+            # 연속 손실 추적
+            if r < 0:
+                cur_streak += 1
+                if cur_streak > max_streak:
+                    max_streak = cur_streak
+            else:
+                cur_streak = 0
+
+            # 파산 체크 — 기준 이하로 떨어지면 해당 run 종료
+            if equity <= RUIN_THRESHOLD:
+                ruined = True
+                break
+
+        final_Rs.append(equity)
+
+        # 낙폭을 n_trades(기준 단위)로 나눠 % 환산
+        # 예: 10R 낙폭 / 100트레이드 = 10% 낙폭
+        base_unit = max(req.n_trades, 1)
+        max_dd_pcts.append(max_dd / base_unit * 100)
+
+        if ruined:
+            ruin_count += 1
+
+        loss_streaks.append(max_streak)
+
+    # ── 퍼센타일 계산 ──────────────────────────────────────────────────
+    final_Rs.sort()
+    max_dd_pcts.sort()
+    loss_streaks.sort()
+
+    n = len(final_Rs)
+    # 인덱스 경계 방어 — runs가 적을 때 IndexError 방지
+    idx_5pct  = max(0, min(int(n * 0.05),  n - 1))
+    idx_95pct = max(0, min(int(n * 0.95),  n - 1))
+
+    result = {
+        "mean_final_R":              round(statistics.mean(final_Rs), 2),
+        "median_final_R":            round(statistics.median(final_Rs), 2),
+        "worst_5pct_final_R":        round(final_Rs[idx_5pct], 2),
+        "mean_max_dd_pct":           round(statistics.mean(max_dd_pcts), 1),
+        "worst_95pct_dd_pct":        round(max_dd_pcts[idx_95pct], 1),
+        "risk_of_ruin_pct":          round(ruin_count / req.runs * 100, 1),
+        "longest_loss_streak_95pct": loss_streaks[idx_95pct],
+        "sample_n":                  req.n_trades,
+        "runs":                      req.runs,
+    }
+
+    # ── 결과 캐싱 ─────────────────────────────────────────────────────
+    if req.cache_key:
+        _sim_cache[req.cache_key] = result
+
+    return result

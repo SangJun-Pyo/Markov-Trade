@@ -12,7 +12,15 @@
   --purple:        #bc8cff;   /* 선물 카테고리 색 */
   --text-primary:  #e6edf3;
   --text-muted:    #8b949e;
-  --sidebar-width: 210px;     /* 사이드바 너비 — 여기만 바꾸면 전체 반영 */
+
+  /* 사이드바 너비 — clamp()로 화면 폭에 따라 자동 조정
+     최소 160px, 화면 폭의 13%, 최대 220px
+     LG Gram 125~150% 배율에서 너무 넓어지는 문제 방지 */
+  --sidebar-width: clamp(160px, 13vw, 220px);
+
+  /* 기본 폰트 크기 — 고해상도/고배율 화면에서 상대적으로 작아지지 않게
+     최소 12px, 화면 폭의 0.85%, 최대 14px */
+  --font-base: clamp(12px, 0.85vw, 14px);
 }
 
 /* ── 기본 리셋 ────────────────────────────────────────────────── */
@@ -22,7 +30,8 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: 'Segoe UI', 'Noto Sans KR', sans-serif;
-  font-size: 14px;
+  /* clamp() 변수로 배율 환경에서 폰트가 너무 작거나 크지 않게 */
+  font-size: var(--font-base, 14px);
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -133,17 +142,62 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
 /* ── 메인 그리드: 사이드바 | 차트 | 채팅 ──────────────────────── */
 .main-grid {
   display: grid;
-  /* 사이드바 | 차트(남은 공간) | 채팅(고정) */
-  grid-template-columns: var(--sidebar-width) 1fr 360px;
+  /* minmax()로 최소 너비를 보장해 화면이 좁아져도 패널이 사라지지 않음 */
+  /* 사이드바(고정) | 차트(최소 300px 확보) | 채팅(최소 260px 확보) */
+  grid-template-columns: var(--sidebar-width) minmax(300px, 1fr) minmax(260px, 360px);
   flex: 1;
   min-height: 0;
   border-bottom: 1px solid var(--border);
   transition: grid-template-columns 0.2s ease;  /* 사이드바 접힐 때 부드럽게 */
+  overflow: hidden;  /* 그리드가 부모를 벗어나지 않게 */
 }
 
 /* 사이드바가 닫혔을 때 — 너비를 0으로 */
 .main-grid.sidebar-collapsed {
-  grid-template-columns: 0 1fr 360px;
+  grid-template-columns: 0 minmax(300px, 1fr) minmax(260px, 360px);
+}
+
+/* AI 분석 패널 접힌 상태 — 채팅 컬럼 폭을 버튼 1개 너비(42px)로 최소화 */
+.main-grid.chat-collapsed {
+  grid-template-columns: var(--sidebar-width) minmax(300px, 1fr) 42px;
+}
+/* 사이드바도 접혀 있을 때 조합 처리 */
+.main-grid.chat-collapsed.sidebar-collapsed {
+  grid-template-columns: 0 minmax(300px, 1fr) 42px;
+}
+
+/* 채팅 패널 접힌 상태에서 본문 영역 숨김 */
+/* chat-body-wrap이 model-toggle, 메시지, 입력창을 감싸고 있어 일괄 숨김 가능 */
+.chat-collapsed .chat-body-wrap {
+  display: none;
+}
+
+/* 채팅 패널 접힌 상태에서 헤더 레이아웃 — 세로 방향으로 재배치 */
+.chat-collapsed .chat-section {
+  overflow: hidden;
+}
+.chat-collapsed .chat-header {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 8px 4px;
+  gap: 6px;
+  writing-mode: vertical-rl;   /* 텍스트를 세로로 표시 */
+  text-orientation: mixed;
+  height: 100%;
+}
+/* 접힌 상태에서 "AI 분석" 텍스트 세로 표시 */
+.chat-collapsed .chat-header span {
+  font-size: 12px;
+}
+/* 접힌 상태에서 버튼 그룹도 세로 배치 */
+.chat-collapsed .chat-header > div {
+  flex-direction: column;
+  writing-mode: horizontal-tb;  /* 버튼은 가로 유지 */
+}
+/* 접힌 상태에서 초기화 버튼 숨김 (공간 부족) */
+.chat-collapsed #reset-btn {
+  display: none;
 }
 
 /* ── 사이드바 ─────────────────────────────────────────────────── */
@@ -264,6 +318,8 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
   flex-direction: column;
   border-right: 1px solid var(--border);
   min-height: 0;
+  min-width: 0;       /* 그리드 셀 안에서 자식이 수축할 수 있도록 */
+  overflow: hidden;   /* 내용이 넘칠 때 잘라냄 */
 }
 
 /* 볼린저밴드 파라미터 + 롱/숏 버튼 바 */
@@ -329,7 +385,8 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
   color: #fff;
 }
 
-#chart-container { flex: 1; min-height: 0; }
+/* 차트 컨테이너 — 최소 크기를 보장해 화면이 좁아져도 차트가 사라지지 않음 */
+#chart-container { flex: 1; min-height: 300px; min-width: 300px; }
 
 .price-info-bar {
   display: flex;
@@ -343,7 +400,8 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
 }
 
 /* ── 채팅 섹션 ────────────────────────────────────────────────── */
-.chat-section { display: flex; flex-direction: column; min-height: 0; background: var(--bg-secondary); }
+/* min-width:0 추가 — 그리드 셀이 minmax() 최솟값 아래로 수축하지 않도록 */
+.chat-section { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; background: var(--bg-secondary); }
 
 .chat-header {
   display: flex;
@@ -484,14 +542,7 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
   padding: 12px;
 }
 
-.tf-card-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  margin-bottom: 8px;
-  letter-spacing: 0.4px;
-}
+/* TF 카드 타이틀은 아이콘 배너 섹션에서 개선 버전으로 정의됨 */
 
 /* TF 카드 내부 테이블 */
 .tf-card-table {
@@ -565,35 +616,131 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
 .guide-item.plan    { border-left-color: var(--blue); }
 
 
-/* ── 매매 일지 섹션 ──────────────────────────────────────────── */
-.journal-section {
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  height: 200px;
-  flex-shrink: 0;
-}
-
-.stats-bar { display: flex; gap: 2px; padding: 6px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.stat-card { display: flex; flex-direction: column; align-items: center; padding: 4px 16px; border-right: 1px solid var(--border); min-width: 80px; }
-.stat-card:last-child { border-right: none; }
-.stat-label { font-size: 11px; color: var(--text-muted); }
-.stat-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
-
-.journal-table-wrap { overflow-y: auto; flex: 1; }
-.journal-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.journal-table th {
-  position: sticky; top: 0;
-  background: var(--bg-card); color: var(--text-muted);
-  padding: 5px 10px; text-align: left;
-  border-bottom: 1px solid var(--border); font-weight: 500;
-}
-.journal-table td { padding: 4px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-.journal-table tr:hover td { background: var(--bg-hover); }
-
+/* ── 삭제 버튼 — Tab B 저널 테이블에서 사용 ───────────────────── */
 .btn-delete { background: transparent; color: var(--red); border: 1px solid var(--red); padding: 2px 8px; font-size: 11px; border-radius: 4px; }
 .btn-delete:hover { background: var(--red); color: #fff; }
+
+/* ── 인라인 수정 가능한 셀 ────────────────────────────────────── */
+/* 더블클릭으로 편집 모드로 전환되는 저널 테이블 셀 */
+.editable-cell {
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.1s;
+  position: relative;
+}
+.editable-cell:hover {
+  background: var(--bg-hover) !important;
+  outline: 1px dashed var(--border);
+}
+/* 편집 모드에서 보여지는 input/select */
+.editable-cell input,
+.editable-cell select {
+  background: var(--bg-card);
+  border: 1px solid var(--blue);
+  color: var(--text-primary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  width: 100%;
+  min-width: 60px;
+  outline: none;
+  font-family: inherit;
+}
+
+/* ── TF 카드 Entry / TP / SL 구분 레이아웃 (레거시 — 하단 테이블 방식) ── */
+/* 기존 방식 스타일은 유지하되 새 아이콘 방식으로 대체됨 */
+.tf-levels-box { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-top: 8px; }
+.tf-level-row { display: flex; justify-content: space-between; padding: 5px 10px; font-size: 12px; font-weight: 600; }
+.tf-level-label { color: var(--text-secondary); font-weight: 500; }
+.tf-level-value { color: var(--text-primary); font-family: monospace; }
+.tf-level-entry { background: rgba(88, 166, 255, 0.08); border-left: 3px solid var(--blue); }
+.tf-level-tp    { background: rgba(63, 185, 80, 0.08);  border-left: 3px solid var(--green); }
+.tf-level-sl    { background: rgba(248, 81, 73, 0.08);  border-left: 3px solid var(--red); }
+
+/* ── 3-TF 카드 상단 Entry/SL 아이콘 배너 (디자인 개선) ──────── */
+/* TP 아이콘 제거 → Entry + SL만 아이콘, TP는 통계 테이블 행으로 이동 */
+.tf-icon-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+/* 개별 아이콘 아이템 — 그라디언트 배경 + 내부 하이라이트로 깊이감 */
+.tf-icon-item {
+  flex: 1;
+  border-radius: 8px;
+  padding: 10px 6px;
+  text-align: center;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Entry 아이콘: 파랑 그라디언트 */
+.tf-icon-item.entry-icon {
+  background: linear-gradient(135deg, rgba(88,166,255,0.18) 0%, rgba(88,166,255,0.06) 100%);
+  border: 1px solid rgba(88, 166, 255, 0.5);
+  box-shadow: inset 0 1px 0 rgba(88,166,255,0.25);
+}
+
+/* TP 아이콘: 초록 그라디언트 (혹시 남아있는 경우 대비) */
+.tf-icon-item.tp-icon {
+  background: linear-gradient(135deg, rgba(63,185,80,0.18) 0%, rgba(63,185,80,0.06) 100%);
+  border: 1px solid rgba(63, 185, 80, 0.5);
+  box-shadow: inset 0 1px 0 rgba(63,185,80,0.25);
+}
+
+/* SL 아이콘: 빨강 그라디언트 */
+.tf-icon-item.sl-icon {
+  background: linear-gradient(135deg, rgba(248,81,73,0.18) 0%, rgba(248,81,73,0.06) 100%);
+  border: 1px solid rgba(248, 81, 73, 0.5);
+  box-shadow: inset 0 1px 0 rgba(248,81,73,0.25);
+}
+
+/* 레이블 — 대문자 + 자간 넓게 */
+.tf-icon-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 5px;
+}
+.tf-icon-item.entry-icon .tf-icon-label { color: var(--blue); }
+.tf-icon-item.tp-icon    .tf-icon-label { color: var(--green); }
+.tf-icon-item.sl-icon    .tf-icon-label { color: var(--red); }
+
+/* 가격 숫자 — Consolas 폰트로 가독성 향상, 자간 -0.3px */
+.tf-icon-value {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: var(--text-primary);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.3px;
+}
+
+/* TF 카드 타이틀 — 작은 뱃지 스타일로 개선 */
+.tf-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  letter-spacing: 0.6px;
+  display: inline-block;
+  background: var(--bg-hover);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+/* ── RSI 서브차트 컨테이너 ────────────────────────────────────── */
+/* 메인 캔들 차트 바로 아래 100px 고정 높이로 RSI 라인 표시 */
+#rsi-container { height: 100px; margin-top: 2px; border-top: 1px solid var(--border); }
 
 .empty-msg { text-align: center; color: var(--text-muted); padding: 20px; font-size: 13px; }
 
@@ -608,6 +755,112 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   Risk Simulation 섹션 — 3-TF 패널 안으로 이동 (채팅 패널에서 분리)
+   Monte Carlo 결과를 4개 KPI 카드 + 경고 배지로 시각화
+   tf-panel-header 아래, tf-cards 위에 위치
+   ══════════════════════════════════════════════════════════════ */
+
+.risk-sim-section {
+  border-top: 1px solid var(--border);    /* 헤더와 구분선 */
+  border-bottom: 1px solid var(--border); /* tf-cards와 구분선 */
+  background: var(--bg-primary);
+  padding: 0 4px;   /* 좌우 패딩으로 tf-panel 내부 정렬 */
+}
+
+.risk-sim-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px 4px;
+}
+
+/* 섹션 제목 — 파란 작은 대문자 레이블 */
+.risk-sim-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--blue);
+}
+
+/* 시뮬레이션 방식 표시 (1,000 runs / Fixed R 등) */
+.risk-sim-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* 4개 KPI 카드 가로 배치 */
+.risk-sim-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  padding: 4px 10px 8px;
+}
+
+/* 개별 KPI 카드 */
+.risk-sim-kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px 6px;
+  text-align: center;
+}
+
+.risk-sim-kpi-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 3px;
+  display: block;
+}
+
+.risk-sim-kpi-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: block;
+}
+
+/* 위험 수준이 높은 값은 빨간색으로 강조 */
+.risk-sim-kpi-value.warn { color: var(--red); }
+
+/* 경고 배지 영역 */
+.risk-sim-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 10px 8px;
+}
+
+/* 개별 배지 — 색상으로 위험 수준 구분 */
+.risk-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+/* 위험: 빨강 (파산 확률 높음, DD 심각) */
+.risk-badge.danger {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--red);
+  border: 1px solid rgba(248, 81, 73, 0.4);
+}
+/* 주의: 노랑 (경미한 경고) */
+.risk-badge.warn {
+  background: rgba(210, 153, 34, 0.15);
+  color: var(--yellow);
+  border: 1px solid rgba(210, 153, 34, 0.4);
+}
+/* 정상: 초록 (모든 지표 안전 범위) */
+.risk-badge.ok {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--green);
+  border: 1px solid rgba(63, 185, 80, 0.4);
+}
 
 
 /* ══════════════════════════════════════════════════════════════
@@ -669,6 +922,53 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
 }
 #tab-journal.active {
   display: block;
+}
+
+/* ── Tab B 2컬럼 레이아웃 (좌: 일지 목록, 우: 전략 가이드) ─────── */
+.journal-layout-grid {
+  display: grid;
+  /* 좌측 일지 영역이 남은 공간, 우측 가이드는 고정 320px */
+  grid-template-columns: 1fr 320px;
+  gap: 0;
+  min-height: 100%;  /* Tab B 전체 높이 채움 */
+  align-items: start; /* 각 컬럼이 내용 높이에 맞춰 독립적으로 높이 결정 */
+}
+
+/* 좌측 메인 컬럼 — 일지 목록 */
+.journal-main-col {
+  min-width: 0;          /* 그리드 셀 내부 수축 허용 */
+  overflow-x: hidden;
+}
+
+/* 우측 가이드 컬럼 — 전략 수정 가이드 */
+.journal-guide-col {
+  border-left: 1px solid var(--border);
+  background: var(--bg-secondary);
+  /* sticky: 스크롤해도 상단에 고정되어 항상 보임 */
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+}
+
+/* 우측 컬럼 안의 전략 가이드 섹션 — 여백/테두리 제거 */
+.journal-guide-col .strategy-guide-section {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+}
+
+/* 900px 이하: 2컬럼 → 1컬럼 세로 스택 복귀 */
+@media (max-width: 900px) {
+  .journal-layout-grid {
+    grid-template-columns: 1fr;
+  }
+  .journal-guide-col {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    position: static;  /* 좁은 화면에서는 sticky 해제 */
+    max-height: none;
+  }
 }
 
 
@@ -883,4 +1183,118 @@ button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; pad
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   반응형 레이아웃 — 화면 폭에 따라 자동 재배치
+   브라우저 창을 줄여도 핵심 기능이 사라지지 않도록 중단점별 처리
+   ══════════════════════════════════════════════════════════════ */
+
+/* 1200px 이하: 채팅 패널 너비 축소 (공간 절약) */
+@media (max-width: 1200px) {
+  .main-grid {
+    grid-template-columns: var(--sidebar-width) minmax(300px, 1fr) 280px;
+  }
+  .main-grid.sidebar-collapsed {
+    grid-template-columns: 0 minmax(300px, 1fr) 280px;
+  }
+}
+
+/* 900px 이하: 채팅 패널을 하단으로 이동 (차트가 전체 폭 사용)
+   accordion 방식: 고정 높이로 펼쳐서 스크롤 가능하게 유지 */
+@media (max-width: 900px) {
+  .main-grid {
+    grid-template-columns: var(--sidebar-width) 1fr;
+    grid-template-rows: 1fr auto;
+  }
+  .main-grid.sidebar-collapsed {
+    grid-template-columns: 0 1fr;
+  }
+  /* 채팅 섹션이 하단 바로 이동 — 두 컬럼 전체 폭 차지 */
+  .chat-section {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    max-height: 280px;
+    border-top: 2px solid var(--border);
+    border-left: none;
+  }
+}
+
+/* 650px 이하: 사이드바 자동 숨김 + 단일 컬럼 레이아웃 */
+@media (max-width: 650px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+  /* 좁은 화면에서는 사이드바 완전히 숨김 */
+  .market-sidebar { display: none !important; }
+  .chat-section {
+    grid-column: 1;
+    max-height: 220px;
+  }
+  /* 헤더 중앙 입력 영역 줄바꿈 허용 */
+  .header-center { flex-wrap: wrap; }
+  .header-right { display: none; } /* 현재가 표시는 좁은 화면에서 숨김 */
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   LG Gram / 고배율 화면 대응 (Windows 125%~150% 배율)
+   LG Gram: 보통 1920x1080 또는 2560x1600, 배율 125~150% 사용
+   device-pixel-ratio로 배율 감지 후 UI 밀도 조정
+   ══════════════════════════════════════════════════════════════ */
+
+/* 125% 배율 — DPR 1.25 (1200dpi 기준 약 120dpi) */
+@media screen and (-webkit-min-device-pixel-ratio: 1.25),
+       screen and (min-resolution: 120dpi) {
+
+  /* 헤더 패딩 축소 — 배율에서 헤더가 너무 높아지는 문제 방지 */
+  .header {
+    padding: 6px 12px;
+  }
+
+  /* BB 컨트롤 바 패딩 축소 */
+  .bb-control-bar {
+    padding: 4px 10px;
+  }
+
+  /* KPI 카드 패딩 축소 — 8개 카드가 줄 바꿈 없이 들어오도록 */
+  .kpi-card {
+    padding: 10px 12px;
+  }
+  .kpi-value {
+    font-size: 18px;
+  }
+
+  /* 3-TF 카드 패딩 축소 */
+  .tf-card {
+    padding: 10px;
+  }
+}
+
+/* 150% 배율 — DPR 1.5 (약 144dpi) */
+@media screen and (-webkit-min-device-pixel-ratio: 1.5),
+       screen and (min-resolution: 144dpi) {
+
+  /* 3-TF 패널: 고배율에서 3컬럼이 너무 좁아지므로 세로 스택으로 전환 */
+  .tf-cards {
+    grid-template-columns: 1fr;
+  }
+
+  /* 채팅 패널 최소 너비 축소 — 차트 공간 더 확보 */
+  .main-grid {
+    grid-template-columns: var(--sidebar-width) minmax(280px, 1fr) minmax(220px, 300px);
+  }
+  .main-grid.sidebar-collapsed {
+    grid-template-columns: 0 minmax(280px, 1fr) minmax(220px, 300px);
+  }
+
+  /* KPI 카드 더 작게 */
+  .kpi-value {
+    font-size: 16px;
+  }
+  .kpi-card {
+    padding: 8px 10px;
+  }
 }

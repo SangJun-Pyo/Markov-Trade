@@ -2,7 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- viewport-fit=cover: 노치/둥근 모서리 화면 + 고배율 배율 대응 강화 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Markov Trade</title>
 
   <!-- TradingView 차트 라이브러리 (CDN — 설치 불필요) -->
@@ -28,13 +29,18 @@
       <input id="ticker-input" type="text" placeholder="종목 코드 직접 입력 (예: BTC-USD)" />
 
       <select id="period-select">
-        <option value="5d">5일</option>
-        <option value="1mo" selected>1개월</option>
+        <option value="1d">1일</option>
+        <option value="5d" selected>5일</option>
+        <option value="1mo">1개월</option>
         <option value="3mo">3개월</option>
         <option value="6mo">6개월</option>
       </select>
 
       <select id="interval-select">
+        <!-- 1분/3분/5분봉: yfinance 지원 (최대 7일 데이터) -->
+        <option value="1m">1분</option>
+        <option value="3m">3분</option>
+        <option value="5m">5분</option>
         <option value="15m">15분</option>
         <option value="1h" selected>1시간</option>
         <option value="1d">1일</option>
@@ -91,11 +97,20 @@
           <!-- 롱/숏 신호 버튼 -->
           <button id="signal-long-btn" class="btn-signal btn-long">롱 (Long)</button>
           <button id="signal-short-btn" class="btn-signal btn-short">숏 (Short)</button>
+          <!-- 엔트리 값 직접 수정 — 비워두면 현재가 자동 사용 -->
+          <label class="bb-param-label">
+            엔트리 직접입력
+            <input id="entry-override" type="number" step="any" placeholder="자동(현재가)" class="bb-param-input" style="width:110px;" />
+          </label>
           <!-- 차트 라인 초기화 버튼 -->
           <button id="signal-clear-btn" class="btn-ghost" style="margin-left:auto;">라인 초기화</button>
         </div>
 
         <div id="chart-container"></div>
+
+        <!-- RSI 서브차트 컨테이너 — 메인 캔들 차트 바로 아래에 RSI 라인 표시 -->
+        <!-- lightweight-charts 별도 인스턴스로 렌더링 (height 100px 고정) -->
+        <div id="rsi-container"></div>
 
         <!-- 차트 하단 가격 정보 바 -->
         <div id="price-info" class="price-info-bar">
@@ -111,23 +126,30 @@
       <section class="chat-section">
         <div class="chat-header">
           <span>AI 분석</span>
-          <button id="reset-btn" class="btn-ghost">초기화</button>
+          <!-- 접기/펼치기 버튼과 초기화 버튼을 나란히 배치 -->
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button id="chat-collapse-btn" class="btn-ghost" title="AI 분석 패널 접기/펼치기">◀ 접기</button>
+            <button id="reset-btn" class="btn-ghost">초기화</button>
+          </div>
         </div>
 
-        <!-- 모델 선택 토글 — Claude 또는 Gemini 선택 -->
-        <div class="model-toggle-bar">
-          <button class="model-btn" id="btn-claude" data-model="claude">
-            <span class="model-dot claude-dot"></span>Claude
-          </button>
-          <button class="model-btn active" id="btn-gemini" data-model="gemini">
-            <span class="model-dot gemini-dot"></span>Gemini
-          </button>
-        </div>
+        <!-- 접기/펼치기 대상 영역 — 이 div 전체가 토글로 숨겨짐 -->
+        <div class="chat-body-wrap">
+          <!-- 모델 선택 토글 — Claude 또는 Gemini 선택 -->
+          <div class="model-toggle-bar">
+            <button class="model-btn" id="btn-claude" data-model="claude">
+              <span class="model-dot claude-dot"></span>Claude
+            </button>
+            <button class="model-btn active" id="btn-gemini" data-model="gemini">
+              <span class="model-dot gemini-dot"></span>Gemini
+            </button>
+          </div>
 
-        <div id="chat-messages" class="chat-messages"></div>
-        <div class="chat-input-row">
-          <input id="chat-input" type="text" placeholder="분석 요청..." />
-          <button id="send-btn" class="btn-primary">전송</button>
+          <div id="chat-messages" class="chat-messages"></div>
+          <div class="chat-input-row">
+            <input id="chat-input" type="text" placeholder="분석 요청..." />
+            <button id="send-btn" class="btn-primary">전송</button>
+          </div>
         </div>
       </section>
 
@@ -141,7 +163,22 @@
         <button id="prefill-journal-btn" class="btn-primary" style="font-size:12px; padding:5px 14px;">
           일지 초안 저장 (Journal 프리필)
         </button>
-        <button id="tf-panel-close-btn" class="btn-ghost">닫기</button>
+        <!-- 패널 본문 접기/펼치기 토글 버튼 (닫기 버튼을 토글로 교체) -->
+        <button id="tf-body-toggle-btn" class="btn-ghost" title="패널 내용 접기/펼치기">▼ 접기</button>
+      </div>
+
+      <!-- Risk Simulation 섹션 — 3-TF 패널 안으로 이동 (채팅 패널에서 분리)
+           롱/숏 신호 생성 후 자동 표시 / Monte Carlo Permutation 1,000 runs 결과 -->
+      <div id="risk-sim-section" class="risk-sim-section" style="display:none;">
+        <div class="risk-sim-header">
+          <span class="risk-sim-title">Risk Simulation</span>
+          <!-- 시뮬레이션 방식과 횟수 표시 -->
+          <span id="risk-sim-runs" class="risk-sim-meta">1,000 runs / Permutation / Fixed R</span>
+        </div>
+        <!-- 4개 KPI 카드 — JavaScript가 동적으로 렌더링 -->
+        <div class="risk-sim-kpi-row" id="risk-sim-kpis"></div>
+        <!-- 경고 배지들 — 위험 수준에 따라 색상 구분 -->
+        <div id="risk-sim-badges" class="risk-sim-badges"></div>
       </div>
 
       <!-- 3개 타임프레임 카드 나란히 배치 -->
@@ -150,167 +187,140 @@
       </div>
     </section>
 
-    <!-- Tab A 하단: 간단 통계바 (기존 유지) -->
-    <section class="journal-section">
-      <div class="stats-bar">
-        <div class="stat-card">
-          <span class="stat-label">총 매매</span>
-          <span id="stat-total" class="stat-value">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">승</span>
-          <span id="stat-win" class="stat-value green">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">패</span>
-          <span id="stat-loss" class="stat-value red">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">승률</span>
-          <span id="stat-winrate" class="stat-value">—</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">진행 중</span>
-          <span id="stat-open" class="stat-value yellow">0</span>
-        </div>
-      </div>
-
-      <!-- 간단 저널 테이블 (기존 유지) -->
-      <div class="journal-table-wrap">
-        <table class="journal-table">
-          <thead>
-            <tr>
-              <th>ID</th><th>시간</th><th>종목</th><th>방향</th>
-              <th>진입가</th><th>손절가</th><th>TP1</th><th>레버리지</th>
-              <th>결과</th><th>손익</th><th>메모</th><th>삭제</th>
-            </tr>
-          </thead>
-          <tbody id="journal-tbody"></tbody>
-        </table>
-        <p id="journal-empty" class="empty-msg">기록된 매매가 없습니다.</p>
-      </div>
-    </section>
-
   </div><!-- /tab-signal -->
 
 
   <!-- ══════════════════════════════════════════════════════════════
        Tab B — Journal / Analytics (일지 + 성과 분석 화면)
+       좌: KPI + 차트 + 저널 테이블 / 우: 전략 수정 가이드
        ══════════════════════════════════════════════════════════════ -->
   <div id="tab-journal" class="tab-content">
 
-    <!-- 1. KPI 카드 8개 — 핵심 성과 지표 한눈에 보기 -->
-    <div class="kpi-section">
-      <div class="kpi-card">
-        <div class="kpi-label">총 손익</div>
-        <div class="kpi-value" id="kpi-total-pnl">—</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">승률</div>
-        <div class="kpi-value" id="kpi-winrate">—</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">평균 R-multiple</div>
-        <div class="kpi-value" id="kpi-avg-r">—</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Profit Factor</div>
-        <div class="kpi-value" id="kpi-profit-factor">—</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Expectancy (R)</div>
-        <div class="kpi-value" id="kpi-expectancy">—</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Max Drawdown</div>
-        <div class="kpi-value" id="kpi-max-dd">—</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">평균 R:R</div>
-        <div class="kpi-value" id="kpi-avg-rr">—</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">최대 연속손실</div>
-        <div class="kpi-value" id="kpi-max-streak">—</div>
-      </div>
-    </div>
+    <!-- Tab B 2컬럼 레이아웃 래퍼 -->
+    <div class="journal-layout-grid">
 
-    <!-- 2. 차트 시각화 3개 (Equity Curve / 일별손익 / R-multiple 히스토그램) -->
-    <div class="analytics-charts">
-      <!-- 누적 Equity Curve — 자산이 어떻게 쌓였는지 추이 -->
-      <div class="analytics-chart-box">
-        <div class="analytics-chart-title">누적 Equity Curve</div>
-        <canvas id="equity-curve-chart"></canvas>
-      </div>
-      <!-- 일별 손익 막대 차트 -->
-      <div class="analytics-chart-box">
-        <div class="analytics-chart-title">일별 손익</div>
-        <canvas id="daily-pnl-chart"></canvas>
-      </div>
-      <!-- R-multiple 분포 히스토그램 -->
-      <div class="analytics-chart-box">
-        <div class="analytics-chart-title">R-multiple 분포</div>
-        <canvas id="r-multiple-chart"></canvas>
-      </div>
-    </div>
+      <!-- 좌측 컬럼: KPI + 차트 + 저널 테이블 -->
+      <div class="journal-main-col">
 
-    <!-- 3. 저널 데이터 테이블 (확장 컬럼 버전) -->
-    <div class="journal-advanced">
-      <!-- 필터 + 버튼 툴바 -->
-      <div class="journal-toolbar">
-        <input id="journal-filter-ticker" type="text" placeholder="종목 필터 (예: MGC)" class="journal-filter-input" />
-        <select id="journal-filter-result" class="journal-filter-select">
-          <option value="all">전체 결과</option>
-          <option value="win">승 (win)</option>
-          <option value="loss">패 (loss)</option>
-          <option value="breakeven">본전 (breakeven)</option>
-          <option value="open">진행 중 (open)</option>
-        </select>
-        <button id="journal-export-csv" class="btn-ghost">CSV 내보내기</button>
-        <button id="journal-add-btn" class="btn-primary">+ 새 매매 추가</button>
-      </div>
+        <!-- 1. KPI 카드 8개 — 핵심 성과 지표 한눈에 보기 -->
+        <div class="kpi-section">
+          <div class="kpi-card">
+            <div class="kpi-label">총 손익</div>
+            <div class="kpi-value" id="kpi-total-pnl">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">승률</div>
+            <div class="kpi-value" id="kpi-winrate">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">평균 R-multiple</div>
+            <div class="kpi-value" id="kpi-avg-r">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Profit Factor</div>
+            <div class="kpi-value" id="kpi-profit-factor">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Expectancy (R)</div>
+            <div class="kpi-value" id="kpi-expectancy">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Max Drawdown</div>
+            <div class="kpi-value" id="kpi-max-dd">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">평균 R:R</div>
+            <div class="kpi-value" id="kpi-avg-rr">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">최대 연속손실</div>
+            <div class="kpi-value" id="kpi-max-streak">—</div>
+          </div>
+        </div>
 
-      <!-- 확장 저널 테이블 -->
-      <div class="journal-table-v2-wrap">
-        <table class="journal-table-v2">
-          <thead>
-            <tr>
-              <th>날짜</th>
-              <th>종목</th>
-              <th>방향</th>
-              <th>진입가</th>
-              <th>SL</th>
-              <th>TP1</th>
-              <th>레버리지</th>
-              <th>계약수</th>
-              <th>결과</th>
-              <th>손익($)</th>
-              <th>손익률(%)</th>
-              <th>R-multiple</th>
-              <th>수수료($)</th>
-              <th>메모</th>
-              <th>삭제</th>
-            </tr>
-          </thead>
-          <tbody id="journal-v2-tbody"></tbody>
-        </table>
-        <p id="journal-v2-empty" class="empty-msg">기록된 매매가 없습니다.</p>
-      </div>
-    </div>
+        <!-- 2. 차트 시각화 3개 (Equity Curve / 일별손익 / R-multiple 히스토그램) -->
+        <div class="analytics-charts">
+          <!-- 누적 Equity Curve — 자산이 어떻게 쌓였는지 추이 -->
+          <div class="analytics-chart-box">
+            <div class="analytics-chart-title">누적 Equity Curve</div>
+            <canvas id="equity-curve-chart"></canvas>
+          </div>
+          <!-- 일별 손익 막대 차트 -->
+          <div class="analytics-chart-box">
+            <div class="analytics-chart-title">일별 손익</div>
+            <canvas id="daily-pnl-chart"></canvas>
+          </div>
+          <!-- R-multiple 분포 히스토그램 -->
+          <div class="analytics-chart-box">
+            <div class="analytics-chart-title">R-multiple 분포</div>
+            <canvas id="r-multiple-chart"></canvas>
+          </div>
+        </div>
 
-    <!-- 4. 전략 수정 가이드 패널 -->
-    <div class="strategy-guide-section">
-      <div class="strategy-guide-header">
-        <span class="strategy-guide-title">전략 수정 가이드 자동 생성</span>
-        <button id="generate-guide-btn" class="btn-primary" style="font-size:12px; padding:5px 14px;">분석 생성</button>
-      </div>
-      <!-- 분석 결과가 여기에 표시됨 -->
-      <div id="strategy-guide-output" class="strategy-guide-output">
-        <p class="empty-msg">분석 생성 버튼을 클릭하면 저널 데이터를 분석해 전략 개선 가이드를 제공합니다.</p>
-      </div>
-    </div>
+        <!-- 3. 저널 데이터 테이블 (확장 컬럼 버전) -->
+        <div class="journal-advanced">
+          <!-- 필터 + 버튼 툴바 -->
+          <div class="journal-toolbar">
+            <input id="journal-filter-ticker" type="text" placeholder="종목 필터 (예: MGC)" class="journal-filter-input" />
+            <select id="journal-filter-result" class="journal-filter-select">
+              <option value="all">전체 결과</option>
+              <option value="win">승 (win)</option>
+              <option value="loss">패 (loss)</option>
+              <option value="breakeven">본전 (breakeven)</option>
+              <option value="open">진행 중 (open)</option>
+            </select>
+            <button id="journal-export-csv" class="btn-ghost">CSV 내보내기</button>
+            <button id="journal-add-btn" class="btn-primary">+ 새 매매 추가</button>
+          </div>
 
-    <!-- 5. 새 매매 추가 모달 (기본 숨김 — 버튼 클릭시 표시) -->
+          <!-- 확장 저널 테이블 -->
+          <div class="journal-table-v2-wrap">
+            <table class="journal-table-v2">
+              <thead>
+                <tr>
+                  <th>날짜</th>
+                  <th>종목</th>
+                  <th>방향</th>
+                  <th>진입가</th>
+                  <th>SL</th>
+                  <th>TP1</th>
+                  <th>레버리지</th>
+                  <th>계약수</th>
+                  <th>결과</th>
+                  <th>손익($)</th>
+                  <th>손익률(%)</th>
+                  <th>R-multiple</th>
+                  <th>수수료($)</th>
+                  <th>메모</th>
+                  <th>삭제</th>
+                </tr>
+              </thead>
+              <tbody id="journal-v2-tbody"></tbody>
+            </table>
+            <p id="journal-v2-empty" class="empty-msg">기록된 매매가 없습니다.</p>
+          </div>
+        </div>
+
+      </div><!-- /journal-main-col -->
+
+      <!-- 우측 컬럼: 전략 수정 가이드 패널 -->
+      <!-- 스크롤 시 고정(sticky)되어 항상 화면에 보임 -->
+      <div class="journal-guide-col">
+        <div class="strategy-guide-section">
+          <div class="strategy-guide-header">
+            <span class="strategy-guide-title">전략 수정 가이드 자동 생성</span>
+            <button id="generate-guide-btn" class="btn-primary" style="font-size:12px; padding:5px 14px;">분석 생성</button>
+          </div>
+          <!-- 분석 결과가 여기에 표시됨 -->
+          <div id="strategy-guide-output" class="strategy-guide-output">
+            <p class="empty-msg">분석 생성 버튼을 클릭하면 저널 데이터를 분석해 전략 개선 가이드를 제공합니다.</p>
+          </div>
+        </div>
+      </div><!-- /journal-guide-col -->
+
+    </div><!-- /journal-layout-grid -->
+
+    <!-- 새 매매 추가 모달 (기본 숨김 — 버튼 클릭시 표시) -->
     <div id="add-trade-modal" class="modal-overlay" style="display:none;">
       <div class="modal-box">
         <div class="modal-header">

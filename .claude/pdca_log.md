@@ -230,18 +230,206 @@
 
 ---
 
-## PDCA #6 — (다음 작업)
+## PDCA #6 — RSI 서브차트 + BB_LOOKUP_RSI 2D 통계 + Entry Filter + Exit Advice
 
-**날짜:** —
+**날짜:** 2026-03-03
 
-### 🔲 Plan
->
+### ✅ Plan
+- 목표: RSI를 Signal 시스템에 완전 통합 (서브차트 시각화 + 통계 2D 룩업 + 진입 필터 + 청산 조언)
+- 수정 파일: `frontend/index.html`, `frontend/style.css`, `frontend/app.js`
+- 핵심 고려사항:
+  - Tab A의 journal-section(간단 통계바 + 저널 테이블) 제거 — Tab B로 기능 통합 완료
+  - lightweight-charts RSI 서브차트는 별도 인스턴스로 100px 고정 높이
+  - BB_LOOKUP_RSI는 기존 BB_LOOKUP 위에 Z-score × RSI 2D 확장
+  - detectRegime() 2분류 → calcRegimeScore() 3분류(추세/전환/박스)로 교체
+  - 기존 BB_LOOKUP + detectRegime()는 legacy 호환 유지
 
-### 🔲 Do
->
+### ✅ Do
+- `frontend/index.html`
+  - `<section class="journal-section">` 전체 블록 제거 (stat-total~journal-empty 포함)
+  - `<div id="rsi-container">` 추가 (chart-container 다음, price-info-bar 이전)
+- `frontend/style.css`
+  - `.journal-section`, `.stats-bar`, `.stat-card`, `.journal-table-wrap`, `.journal-table` 제거
+  - `.tf-levels-box`, `.tf-level-row`, `.tf-level-label`, `.tf-level-value` 추가 (Entry/TP/SL 시각 구분)
+  - `.tf-level-entry` (파란 왼쪽 테두리), `.tf-level-tp` (초록), `.tf-level-sl` (빨강) 추가
+  - `#rsi-container { height: 100px; margin-top: 2px; border-top: 1px solid var(--border); }` 추가
+- `frontend/app.js`
+  - `calcRSI(closes, period)` — Wilder RSI 공식 (SMA 초기값 후 지수평활)
+  - `getRSIBucket(rsi)` + `getRSIBucketLabel(bucket)` — 5구간 분류
+  - `BB_LOOKUP_RSI` — mean_reversion × trend 각 8개 Z-score 구간 × 5개 RSI 구간 = 80셀
+  - `getZScoreKeyForRSI(z)` — BB_LOOKUP_RSI용 별도 키 매핑 (기존 getZScoreKey와 키 이름 다름)
+  - `calcRegimeScore(bb, rsiValue)` — ADX Proxy + EMA 방향 + RSI 편향 가중합 → 3분류
+  - `checkEntryFilter(direction, zScore, rsiValue, regimeType)` — Z/RSI/Regime 3조건 체크
+  - `detectSimpleDivergence(direction, rsiHistory)` — 최근 5봉 RSI 방향 반전 감지
+  - `calcExitAdvice(direction, rsiValue, rsiHistory)` — 부분청산/TP확장/다이버전스 조언
+  - `getConfidenceLabel(samples)` — 샘플 수 기반 신뢰도 4단계
+  - `generateSignal()` 수정 — RSI 계산 통합 + BB_LOOKUP_RSI 조회 + 진입필터 + Exit 조언 채팅 출력
+  - `renderTFPanel()` 수정 — 각 TF별 RSI 계산 + `.tf-levels-box` 구조로 Entry/TP/SL 표시
+  - `loadChart()` 수정 — RSI 서브차트 렌더링 (보라 라인 + 70/30 점선 기준선)
+    - `window.rsiChart`, `window.rsiSeries`, `window.rsi70Series`, `window.rsi30Series` 전역 관리
+    - ResizeObserver에 RSI 컨테이너 너비 동기화 추가
+  - `loadJournal()` 수정 — stat-* DOM 업데이트 제거, allTradesCache 갱신만 유지
+  - `renderJournalTable()` 수정 — `if (!tbody) return` null 가드 추가
 
 ### 🔲 Check
-- [ ]
+- [ ] RSI 서브차트가 메인 캔들 차트 아래에 보라색 라인으로 표시
+- [ ] RSI 70/30 점선 기준선 표시
+- [ ] 롱/숏 버튼 클릭 시 채팅창에 "RSI 통계 엔진 + Entry Filter 체크 + Exit 보조 로직" 섹션 출력
+- [ ] Entry Filter 3조건 PASS/FAIL 상태 정확히 표시
+- [ ] 3-TF 패널 카드에 Entry/TP/SL이 색상 구분 박스로 표시
+- [ ] Tab A에 journal-section(통계바+저널 테이블)이 사라짐 확인
+- [ ] 앱 시작 시 콘솔 에러 없음 확인
 
 ### 🔲 Act
->
+> Check 완료 후 작성 예정
+
+
+---
+
+## PDCA #7 — Monte Carlo 리스크 검증 + 반응형 레이아웃 + 추가 기능 6가지
+
+**날짜:** 2026-03-03
+
+### ✅ Plan
+- 목표: 요청 1~3 구현 (Monte Carlo 리스크 시뮬레이션 / 반응형 레이아웃 / 6가지 추가 기능)
+- 수정 파일: `main.py`, `frontend/index.html`, `frontend/style.css`, `frontend/app.js`
+- 핵심 고려사항:
+  - 기존 Claude/Gemini 채팅, TradingView 차트, 볼린저밴드 신호 동작 완전 유지
+  - Monte Carlo: numpy 없이 Python 표준 random + statistics 모듈만 사용
+  - 반응형: minmax() CSS 함수로 최솟값 보장, 미디어 쿼리 3개 (1200/900/650px)
+  - 인라인 수정: click-to-edit 패턴, blur/Enter 저장, Escape 취소
+
+### ✅ Do
+
+#### TASK 1: 반응형 레이아웃 수정
+- `style.css` — `.main-grid` grid-template-columns에 `minmax(300px, 1fr)` + `minmax(260px, 360px)` 적용
+- `style.css` — `#chart-container` min-height/min-width 300px 보장
+- `style.css` — `.chart-section`, `.chat-section` min-width:0 추가 (그리드 수축 허용)
+- `style.css` — 미디어 쿼리 3개 추가 (1200px, 900px, 650px 중단점)
+  - 900px 이하: 채팅 패널 하단으로 이동 (grid-row: 2)
+  - 650px 이하: 사이드바 숨김, 세로 단일 컬럼
+- `app.js` — ResizeObserver에서 `Math.max(clientWidth, 300)` 최솟값 보장
+
+#### TASK 2: 재조회 시 엔트리/포지션 초기화
+- `app.js` — `loadChart()` 시작 부분에 `clearSignalLines()`, `lastSignalData=null`, 3-TF 패널 숨김, Risk Sim 섹션 숨김, entry-override 초기화 추가
+
+#### TASK 3: 엔트리 값 직접 입력
+- `index.html` — `.bb-control-bar` 내 롱/숏 버튼 옆에 `id="entry-override"` input 추가
+- `app.js` — `generateSignal()` 내 `entry-override` 값 읽어 `levels.entry` 덮어씀 + R:R 재계산
+- `app.js` — 신호 생성 후 입력창에 사용된 entry 값 표시
+
+#### TASK 4: Tab B 전략 가이드 우측 이동
+- `index.html` — `#tab-journal` 내부를 `.journal-layout-grid` 래퍼로 2컬럼 분리
+  - 좌: `.journal-main-col` (KPI + 차트 + 저널 테이블)
+  - 우: `.journal-guide-col` (전략 수정 가이드)
+- `style.css` — `.journal-layout-grid` `grid-template-columns: 1fr 320px`
+- `style.css` — `.journal-guide-col` sticky top, max-height 설정
+- `style.css` — 900px 이하 세로 스택 복귀 미디어 쿼리
+
+#### TASK 5: 저널 인라인 수정
+- `style.css` — `.editable-cell`, `.editable-cell input/select` 스타일 추가
+- `app.js` — `renderJournalV2()` 완전 재작성
+  - `makeEditableCell()` 헬퍼 함수: 더블클릭 → input/select 전환 → blur/Enter 저장 → PUT API
+  - 수정 가능 컬럼: entry/stop_loss/tp1/leverage/contracts/result/pnl_amount/pnl_pct/r_multiple/fee/memo
+  - 날짜/방향은 읽기 전용 유지
+
+#### TASK 6: 3-TF 패널 아이콘형 Entry/TP/SL
+- `style.css` — `.tf-icon-bar`, `.tf-icon-item`, `.tf-icon-label`, `.tf-icon-value` 추가
+  - entry-icon (파랑), tp-icon (초록), sl-icon (빨강) 배경 테마
+- `app.js` — `renderTFPanel()` 내 `.tf-levels-box` → `.tf-icon-bar` 구조로 교체
+  - 아이콘 배너가 카드 상단(제목 바로 아래), 통계 테이블이 그 아래
+
+#### TASK 7: RSI 차트 x축 동기화
+- `app.js` — `loadChart()` 내 RSI 차트 초기화 후 양방향 subscribeVisibleTimeRangeChange 이벤트 구독
+  - `isSyncing` 플래그로 무한 루프 방지
+  - 초기 범위도 `getVisibleRange()` → `setVisibleRange()` 동기화
+
+#### TASK 8: Monte Carlo 리스크 시뮬레이션
+- `main.py` — `import random, statistics` 추가
+- `main.py` — `SimulateRequest` Pydantic 모델 추가 (win_rate/avg_win_R/avg_loss_R/n_trades/leverage/runs/cache_key)
+- `main.py` — `_sim_cache: dict = {}` 서버 메모리 캐시 추가
+- `main.py` — `POST /simulate` 엔드포인트 추가
+  - Permutation 방식 1,000회 시뮬레이션
+  - 파산 기준: 누적 -50R 이하
+  - 반환: mean_final_R/median_final_R/worst_5pct_final_R/mean_max_dd_pct/worst_95pct_dd_pct/risk_of_ruin_pct/longest_loss_streak_95pct
+- `index.html` — `.chat-section` 내 모델 토글 아래에 `#risk-sim-section` DOM 추가 (기본 숨김)
+- `style.css` — `.risk-sim-section`, `.risk-sim-kpi-row`, `.risk-sim-kpi`, `.risk-badge` 스타일 추가
+- `app.js` — `generateSignal()` 마지막에 `runMonteCarloSim()` 자동 호출 추가
+  - EV에서 avg_win_R 역산 (avgLoss=1R 고정)
+  - cache_key = `${ticker}_${rsiZKey}_${rsiBucket}_${regimeType}`
+- `app.js` — `runMonteCarloSim(params)` 함수 추가 (app.js 12번 섹션 앞)
+  - KPI 카드 4개 렌더링 (Worst 5% DD / Ruin % / Sample N / 신뢰도)
+  - 경고 조건: Ruin > 10%, Worst DD > 30%, N < 100
+
+### 🔲 Check
+- [ ] 브라우저 창 폭 줄여도 차트 + 채팅 패널 유지 확인
+- [ ] 900px 이하에서 채팅 패널 하단 이동 확인
+- [ ] 종목 재조회 시 기존 라인 + entry input 초기화 확인
+- [ ] entry-override input에 값 입력 후 롱/숏 버튼 클릭 → 해당 값으로 라인 그려짐 확인
+- [ ] Tab B Journal/Analytics 탭에서 좌: 일지 목록, 우: 전략 가이드 레이아웃 확인
+- [ ] 저널 테이블 셀 더블클릭 → input 전환 → Enter 저장 확인
+- [ ] 3-TF 패널 각 카드 상단에 Entry/TP/SL 아이콘 배너 표시 확인
+- [ ] RSI 차트 스크롤/줌 시 메인 차트와 x축 동기화 확인
+- [ ] 롱/숏 버튼 클릭 후 Risk Simulation 섹션 자동 표시 확인
+- [ ] KPI 카드 4개 값 표시 + 경고 배지 색상 확인
+
+### 🔲 Act
+> Check 완료 후 작성 예정
+
+
+---
+
+## PDCA #8 — UI 개선 7가지 (TP 정리 / 패널 토글 / Risk Sim 이동 / 디자인 / 배율 / 접기 / 기본값)
+
+**날짜:** 2026-03-04
+
+### Plan
+- 목표: 가독성 개선 + LG Gram 배율 대응 + 기본값 변경 (7가지 사용자 요청)
+- 수정 파일: `frontend/index.html`, `frontend/style.css`, `frontend/app.js`
+- 핵심 고려사항:
+  - 기존 signalLines 배열, runMonteCarloSim() 함수 로직 변경 없이 DOM 이동만으로 처리
+  - chat-body-wrap 래핑으로 기존 이벤트 바인딩(model-btn, send-btn 등) 영향 없음
+  - clamp() 변수로 배율 환경에 자동 대응
+
+### Do
+
+#### TASK 1: TP 라인 가독성 개선
+- `app.js` `renderTFPanel()` — `.tf-icon-bar`에서 tp-icon div 제거
+- `app.js` — 통계 테이블에 `TP (목표가)` 행 추가 (각 TF별 1개로 명확히 표시)
+
+#### TASK 2: 3-TF 패널 접기/펼치기 토글 버튼
+- `index.html` — `tf-panel-close-btn` → `tf-body-toggle-btn`으로 교체
+- `app.js` — 토글 이벤트: tf-cards + risk-sim-section 동시 숨김/표시
+- `app.js` — `data-has-data` 속성으로 Risk Sim이 데이터 없을 때 펼쳐도 표시 안 함
+
+#### TASK 3: Risk Simulation + RSI 엔진을 3-TF 패널로 이동
+- `index.html` — `#risk-sim-section` DOM을 `.chat-section`에서 `#tf-panel-section`(tf-cards 위)로 이동
+
+#### TASK 4: 3-TF 아이콘 디자인 개선
+- `style.css` — linear-gradient + box-shadow inset으로 깊이감 추가
+- `style.css` — `.tf-card-title` 배지 스타일로 개선
+
+#### TASK 5: LG Gram 저해상도 화면 배율 문제 해결
+- `index.html` — viewport-fit=cover 추가
+- `style.css` — --sidebar-width: clamp(160px, 13vw, 220px)
+- `style.css` — --font-base: clamp(12px, 0.85vw, 14px)
+- `style.css` — DPR 1.25 / 1.5 미디어 쿼리 추가
+
+#### TASK 6: AI 분석 창 접기 버튼 추가
+- `index.html` — chat-collapse-btn 추가, chat-body-wrap으로 래핑
+- `style.css` — chat-collapsed 상태 CSS
+- `app.js` — 클릭 이벤트 + 250ms 후 차트 리사이즈
+
+#### TASK 7: 기본 조회 옵션 변경 + 타임프레임 추가
+- `index.html` — 기본값 5d/1h, 1분/3분/5분봉 옵션 추가
+
+### Check
+- [ ] 3-TF 패널 카드 TP 아이콘 사라짐 + 테이블에 TP 행 표시 확인
+- [ ] "▼ 접기" / "▶ 펼치기" 토글 동작 확인
+- [ ] 롱/숏 버튼 클릭 후 Risk Sim이 3-TF 패널 내부에 표시 확인
+- [ ] LG Gram 고배율에서 레이아웃 확인
+- [ ] AI 채팅 접기/펼치기 동작 + 차트 리사이즈 확인
+- [ ] 기본 조회 5일/1시간봉 + 1분/3분/5분봉 옵션 확인
+
+### Act
+> Check 완료 후 작성 예정
